@@ -1,0 +1,24 @@
+# LLM Red Team GUI - Requirements
+# Install with: pip install -r requirements.txt
+
+# GUI Framework
+customtkinter>=5.2.0
+
+# HTTP Requests
+requests>=2.31.0
+
+# HuggingFace Hub (official library for authentication and API)
+huggingface_hub>=0.20.0
+
+# YAML config support (for Garak configs)
+PyYAML>=6.0
+
+# Optional: For better async support
+aiohttp>=3.9.0
+
+# Optional: For enhanced visuals
+Pillow>=10.0.0
+
+# Note: Garak should be installed separately:
+# pip install garak
+# Requires Python 3.10+
