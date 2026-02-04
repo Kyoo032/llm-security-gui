@@ -7,8 +7,11 @@ customtkinter>=5.2.0
 # HTTP Requests
 requests>=2.31.0
 
-# HuggingFace Hub (official library for authentication and API)
+# HuggingFace Hub (for CLI token access)
 huggingface_hub>=0.20.0
+
+# Secure credential storage
+keyring>=25.0.0
 
 # YAML config support (for Garak configs)
 PyYAML>=6.0

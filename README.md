@@ -2,6 +2,17 @@
 
 A desktop application for security testing of Large Language Models using the HuggingFace Inference API, with Garak CLI integration.
 
+## 🐧 Platform Support
+
+| Platform | Status |
+|----------|--------|
+| Linux (native) | ✅ Fully supported |
+| WSL2 | ✅ Fully supported |
+| macOS | ⚠️ Not tested |
+| Windows (native) | ❌ Not supported |
+
+**This application is designed for Linux only.** Windows users should run it in WSL2.
+
 ## 🚀 Features
 
 - **Step-by-step wizard interface** - Easy to follow workflow
@@ -27,9 +38,10 @@ Based on verified testing (GTX 1650, 4GB VRAM):
 
 ## 📋 Requirements
 
+- **Linux** (native or WSL2)
 - Python 3.10+ (required for Garak)
 - HuggingFace API key ([get one here](https://huggingface.co/settings/tokens))
-- WSL2 + Ubuntu 22.04 (recommended)
+- WSL2 + Ubuntu 22.04 (recommended for Windows users)
 
 ## 🔧 Installation
 
@@ -88,7 +100,8 @@ garak --config your_config.yaml
 
 ### Step 1: API Key
 - Enter your HuggingFace API key
-- Key is saved locally for convenience
+- Key is saved only if you enable “Remember key”
+- Stored in OS keychain when available; otherwise saved to `~/.llm_red_team_config.json` with restricted permissions
 
 ### Step 2: Select Model
 - **Verified models** are highlighted (safe for 4GB VRAM)

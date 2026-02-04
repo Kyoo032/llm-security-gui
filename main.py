@@ -4,14 +4,89 @@ LLM Red Teaming GUI Application
 A desktop tool for testing LLM vulnerabilities using HuggingFace API
 """
 
+import sys
+
+# Linux-only guard
+if sys.platform == "win32":
+    raise RuntimeError(
+        "This application is designed for Linux only. "
+        "Please run on Linux or WSL2."
+    )
+
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import threading
 import json
 import os
+import logging
+import shutil
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-import csv
+
+try:
+    import keyring  # type: ignore
+    _KEYRING_AVAILABLE = True
+except Exception:
+    keyring = None
+    _KEYRING_AVAILABLE = False
+
+try:
+    from huggingface_hub import HfFolder
+    _HF_HUB_AVAILABLE = True
+except Exception:
+    HfFolder = None
+    _HF_HUB_AVAILABLE = False
+
+
+def _configure_wslg_env():
+    """Ensure WSLg display vars are set for non-interactive shells."""
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        return
+
+    is_wsl = "WSL_DISTRO_NAME" in os.environ
+    if not is_wsl:
+        try:
+            with open("/proc/version", "r", encoding="utf-8") as f:
+                if "microsoft" in f.read().lower():
+                    is_wsl = True
+        except Exception:
+            pass
+
+    if not is_wsl:
+        return
+
+    runtime_dir = "/mnt/wslg/runtime-dir"
+    if os.path.exists(os.path.join(runtime_dir, "wayland-0")):
+        os.environ.setdefault("XDG_RUNTIME_DIR", runtime_dir)
+        os.environ.setdefault("WAYLAND_DISPLAY", "wayland-0")
+
+    if os.path.exists("/mnt/wslg/.X11-unix"):
+        os.environ.setdefault("DISPLAY", ":0")
+
+
+def _configure_logging() -> logging.Logger:
+    """Configure application logging to a local file."""
+    logger = logging.getLogger("llm_red_team_gui")
+    if logger.handlers:
+        return logger
+
+    logger.setLevel(logging.INFO)
+    log_path = os.path.expanduser("~/.llm_red_team_gui.log")
+    try:
+        handler = logging.FileHandler(log_path, encoding="utf-8")
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        try:
+            os.chmod(log_path, 0o600)
+        except Exception:
+            pass
+    except Exception:
+        # Last resort: avoid crashing if file logging fails
+        logging.basicConfig(level=logging.INFO)
+    return logger
 
 # Import our modules
 from api_handler import HuggingFaceAPIHandler
@@ -22,10 +97,16 @@ from results_manager import ResultsManager
 
 class LLMRedTeamApp(ctk.CTk):
     """Main application window for LLM Red Teaming"""
+
+    _KEYRING_SERVICE = "llm_red_team_gui"
+    _KEYRING_USERNAME = "huggingface_api_key"
+    _CONFIG_PATH = os.path.expanduser("~/.llm_red_team_config.json")
     
     def __init__(self):
         super().__init__()
-        
+
+        self.logger = _configure_logging()
+
         # Window setup
         self.title("LLM Red Team - Security Testing Suite")
         self.geometry("1400x900")
@@ -47,6 +128,12 @@ class LLMRedTeamApp(ctk.CTk):
         self.selected_model: Optional[str] = None
         self.test_running = False
         self.test_results: List[Dict] = []
+        self._api_validation_in_progress = False
+        self._hf_token_validation_in_progress = False
+        self._model_search_in_progress = False
+        self._hf_login_in_progress = False
+        self._refresh_btn_lock = threading.Lock()
+        self._refresh_btn_added = False
         
         # Create main container
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -140,14 +227,14 @@ class LLMRedTeamApp(ctk.CTk):
     
     # ==================== STEP 1: API KEY ====================
     def _show_step_1_api_key(self):
-        """Show API key input step with cached token detection"""
+        """Show API key input step"""
         self._clear_content()
         self._update_step_indicator(1)
-
+        
         # Center container
         center_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
         center_frame.place(relx=0.5, rely=0.4, anchor="center")
-
+        
         # Icon and title
         icon_label = ctk.CTkLabel(
             center_frame,
@@ -155,7 +242,7 @@ class LLMRedTeamApp(ctk.CTk):
             font=ctk.CTkFont(size=64)
         )
         icon_label.pack(pady=10)
-
+        
         title = ctk.CTkLabel(
             center_frame,
             text="HuggingFace Authentication",
@@ -163,82 +250,99 @@ class LLMRedTeamApp(ctk.CTk):
         )
         title.pack(pady=10)
 
-        # Check for cached token
-        self.cached_token = HuggingFaceAPIHandler.get_cached_token()
-        self.cached_token_valid = False
-        self.cached_username = None
-
-        if self.cached_token:
-            # Show cached token section
-            cached_frame = ctk.CTkFrame(center_frame, fg_color="#1a3a1a")
-            cached_frame.pack(fill="x", pady=10, padx=20)
-
-            cached_title = ctk.CTkLabel(
-                cached_frame,
-                text="✅ Cached Token Detected",
-                font=ctk.CTkFont(size=16, weight="bold"),
-                text_color="#00FF88"
-            )
-            cached_title.pack(pady=(10, 5))
-
-            self.cached_info_label = ctk.CTkLabel(
-                cached_frame,
-                text="Validating cached token...",
-                font=ctk.CTkFont(size=12),
-                text_color="gray"
-            )
-            self.cached_info_label.pack(pady=5)
-
-            self.use_cached_btn = ctk.CTkButton(
-                cached_frame,
-                text="⏳ Checking...",
-                width=200,
-                height=40,
-                font=ctk.CTkFont(size=14, weight="bold"),
-                fg_color="#228822",
-                hover_color="#339933",
-                state="disabled",
-                command=self._use_cached_token
-            )
-            self.use_cached_btn.pack(pady=10)
-
-            # Validate cached token in background
-            self._validate_cached_token_async()
-
-        # Separator
-        separator_frame = ctk.CTkFrame(center_frame, fg_color="transparent")
-        separator_frame.pack(fill="x", pady=15, padx=20)
-
-        sep_left = ctk.CTkFrame(separator_frame, height=2, fg_color="gray")
-        sep_left.pack(side="left", fill="x", expand=True)
-
-        sep_text = ctk.CTkLabel(separator_frame, text=" OR ", text_color="gray")
-        sep_text.pack(side="left", padx=10)
-
-        sep_right = ctk.CTkFrame(separator_frame, height=2, fg_color="gray")
-        sep_right.pack(side="left", fill="x", expand=True)
-
-        # Manual entry section
-        manual_label = ctk.CTkLabel(
-            center_frame,
-            text="Enter API Key Manually",
-            font=ctk.CTkFont(size=14, weight="bold")
-        )
-        manual_label.pack(pady=(10, 5))
-
         description = ctk.CTkLabel(
             center_frame,
-            text="Get your key at: huggingface.co/settings/tokens",
-            font=ctk.CTkFont(size=12),
+            text="Authenticate with HuggingFace to access models.\nPreferred: Use 'huggingface-cli login' for secure authentication",
+            font=ctk.CTkFont(size=14),
             text_color="gray",
             justify="center"
         )
-        description.pack(pady=5)
+        description.pack(pady=10)
+
+        # Check if already logged in via HF CLI
+        hf_token = self._get_hf_cli_token()
+
+        # HuggingFace CLI Login (Preferred Method)
+        if hasattr(self, "refresh_btn"):
+            try:
+                self.refresh_btn.destroy()
+            except Exception:
+                pass
+            delattr(self, "refresh_btn")
+        self._refresh_btn_added = False
+
+        self.hf_cli_frame = ctk.CTkFrame(center_frame)
+        self.hf_cli_frame.pack(pady=15, padx=20, fill="x")
+
+        hf_cli_title = ctk.CTkLabel(
+            self.hf_cli_frame,
+            text="✅ Recommended: HuggingFace CLI Login",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="green"
+        )
+        hf_cli_title.pack(pady=10)
+
+        if hf_token:
+            self.hf_status_label = ctk.CTkLabel(
+                self.hf_cli_frame,
+                text="✅ Already logged in via HuggingFace CLI",
+                font=ctk.CTkFont(size=14),
+                text_color="green"
+            )
+            self.hf_status_label.pack(pady=5)
+
+            continue_btn = ctk.CTkButton(
+                self.hf_cli_frame,
+                text="Continue with HF CLI Token →",
+                width=250,
+                height=45,
+                font=ctk.CTkFont(size=14, weight="bold"),
+                command=lambda: self._use_hf_cli_token(hf_token)
+            )
+            continue_btn.pack(pady=10)
+        else:
+            self.hf_status_label = ctk.CTkLabel(
+                self.hf_cli_frame,
+                text="Not logged in via HuggingFace CLI",
+                font=ctk.CTkFont(size=14),
+                text_color="gray"
+            )
+            self.hf_status_label.pack(pady=5)
+
+            self.hf_login_btn = ctk.CTkButton(
+                self.hf_cli_frame,
+                text="🚀 Run 'huggingface-cli login'",
+                width=250,
+                height=45,
+                font=ctk.CTkFont(size=14, weight="bold"),
+                command=self._run_hf_cli_login
+            )
+            self.hf_login_btn.pack(pady=10)
+
+        # Separator
+        separator = ctk.CTkLabel(
+            center_frame,
+            text="─────────── OR ───────────",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        )
+        separator.pack(pady=15)
+
+        # Manual API key entry (Fallback)
+        manual_frame = ctk.CTkFrame(center_frame)
+        manual_frame.pack(pady=15, padx=20, fill="x")
+
+        manual_title = ctk.CTkLabel(
+            manual_frame,
+            text="Manual API Key Entry",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        manual_title.pack(pady=10)
 
         # API key input frame
-        input_frame = ctk.CTkFrame(center_frame, fg_color="transparent")
+        input_frame = ctk.CTkFrame(manual_frame, fg_color="transparent")
         input_frame.pack(pady=10)
-
+        
         self.api_key_entry = ctk.CTkEntry(
             input_frame,
             width=400,
@@ -248,7 +352,7 @@ class LLMRedTeamApp(ctk.CTk):
             show="•"
         )
         self.api_key_entry.pack(side="left", padx=5)
-
+        
         # Show/hide toggle
         self.show_key = ctk.BooleanVar(value=False)
         show_btn = ctk.CTkButton(
@@ -260,86 +364,53 @@ class LLMRedTeamApp(ctk.CTk):
         )
         show_btn.pack(side="left", padx=5)
 
-        # Validate button
-        validate_btn = ctk.CTkButton(
+        # Remember key toggle
+        self.remember_key = ctk.BooleanVar(value=False)
+        remember_cb = ctk.CTkCheckBox(
             center_frame,
+            text="Remember key on this device",
+            variable=self.remember_key
+        )
+        remember_cb.pack(pady=(5, 0))
+
+        # Saved key actions
+        saved_key_frame = ctk.CTkFrame(manual_frame, fg_color="transparent")
+        saved_key_frame.pack(pady=(5, 10))
+
+        load_key_btn = ctk.CTkButton(
+            saved_key_frame,
+            text="Load Saved Key",
+            width=140,
+            command=self._load_saved_api_key
+        )
+        load_key_btn.pack(side="left", padx=5)
+
+        forget_key_btn = ctk.CTkButton(
+            saved_key_frame,
+            text="Forget Saved Key",
+            width=140,
+            command=self._forget_saved_api_key
+        )
+        forget_key_btn.pack(side="left", padx=5)
+
+        # Validate button
+        self.validate_btn = ctk.CTkButton(
+            manual_frame,
             text="Validate & Continue →",
             width=200,
             height=45,
             font=ctk.CTkFont(size=14, weight="bold"),
             command=self._validate_api_key
         )
-        validate_btn.pack(pady=15)
-
-        # CLI login hint
-        cli_frame = ctk.CTkFrame(center_frame, fg_color="#1a1a3a")
-        cli_frame.pack(fill="x", pady=10, padx=20)
-
-        cli_hint = ctk.CTkLabel(
-            cli_frame,
-            text="💡 Tip: Run 'huggingface-cli login' in terminal for easier authentication",
-            font=ctk.CTkFont(size=11),
-            text_color="#8888FF"
-        )
-        cli_hint.pack(pady=8, padx=10)
+        self.validate_btn.pack(pady=15)
 
         # Status label
         self.api_status_label = ctk.CTkLabel(
-            center_frame,
+            manual_frame,
             text="",
             font=ctk.CTkFont(size=12)
         )
-        self.api_status_label.pack()
-
-        # Load saved key if exists (fallback)
-        self._load_saved_api_key()
-
-    def _validate_cached_token_async(self):
-        """Validate cached token in background thread"""
-        def validate():
-            is_valid, message, username = HuggingFaceAPIHandler.validate_cached_token()
-            self.after(0, lambda: self._on_cached_token_validated(is_valid, message, username))
-
-        threading.Thread(target=validate, daemon=True).start()
-
-    def _on_cached_token_validated(self, is_valid: bool, message: str, username: Optional[str]):
-        """Handle cached token validation result"""
-        if is_valid:
-            self.cached_token_valid = True
-            self.cached_username = username
-            self.cached_info_label.configure(
-                text=f"Logged in as: {username}",
-                text_color="#00FF88"
-            )
-            self.use_cached_btn.configure(
-                text=f"Use Cached Token ({username}) →",
-                state="normal"
-            )
-        else:
-            self.cached_info_label.configure(
-                text=f"⚠️ {message}",
-                text_color="#FFAA00"
-            )
-            self.use_cached_btn.configure(
-                text="Token Invalid",
-                state="disabled",
-                fg_color="gray"
-            )
-
-    def _use_cached_token(self):
-        """Use the cached token for authentication"""
-        if not self.cached_token or not self.cached_token_valid:
-            return
-
-        self.api_status_label.configure(text="⏳ Connecting...", text_color="yellow")
-        self.update()
-
-        self.api_handler = HuggingFaceAPIHandler(self.cached_token)
-        self.api_status_label.configure(
-            text=f"✅ Connected as {self.cached_username}!",
-            text_color="green"
-        )
-        self.after(500, self._show_step_2_model_selection)
+        self.api_status_label.pack(pady=5)
     
     def _toggle_api_key_visibility(self):
         """Toggle API key visibility"""
@@ -347,28 +418,82 @@ class LLMRedTeamApp(ctk.CTk):
         self.api_key_entry.configure(show="" if self.show_key.get() else "•")
     
     def _load_saved_api_key(self):
-        """Load saved API key from config"""
-        config_path = os.path.expanduser("~/.llm_red_team_config.json")
-        if os.path.exists(config_path):
+        """Load saved API key (keyring preferred, file fallback)"""
+        api_key = None
+        if _KEYRING_AVAILABLE and keyring is not None:
             try:
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                    if 'api_key' in config:
-                        self.api_key_entry.insert(0, config['api_key'])
+                api_key = keyring.get_password(self._KEYRING_SERVICE, self._KEYRING_USERNAME)
             except Exception:
-                pass
+                api_key = None
+
+        if not api_key and os.path.exists(self._CONFIG_PATH):
+            try:
+                with open(self._CONFIG_PATH, 'r') as f:
+                    config = json.load(f)
+                    api_key = config.get('api_key')
+            except Exception:
+                api_key = None
+
+        if api_key:
+            self.api_key_entry.delete(0, "end")
+            self.api_key_entry.insert(0, api_key)
+            self.api_status_label.configure(text="Saved key loaded", text_color="green")
+        else:
+            self.api_status_label.configure(text="No saved key found", text_color="gray")
     
     def _save_api_key(self, api_key: str):
-        """Save API key to config"""
-        config_path = os.path.expanduser("~/.llm_red_team_config.json")
+        """Save API key (keyring preferred, file fallback)"""
+        if not self.remember_key.get():
+            return
+
+        if _KEYRING_AVAILABLE and keyring is not None:
+            try:
+                keyring.set_password(self._KEYRING_SERVICE, self._KEYRING_USERNAME, api_key)
+                return
+            except Exception:
+                pass
+
         try:
-            with open(config_path, 'w') as f:
-                json.dump({'api_key': api_key}, f)
+            data = {'api_key': api_key}
+            tmp_path = f"{self._CONFIG_PATH}.tmp"
+            fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as f:
+                json.dump(data, f)
+            os.replace(tmp_path, self._CONFIG_PATH)
+            try:
+                os.chmod(self._CONFIG_PATH, 0o600)
+            except Exception:
+                pass
         except Exception:
             pass
+
+    def _forget_saved_api_key(self):
+        """Remove saved API key from keyring and file"""
+        removed = False
+        if _KEYRING_AVAILABLE and keyring is not None:
+            try:
+                keyring.delete_password(self._KEYRING_SERVICE, self._KEYRING_USERNAME)
+                removed = True
+            except Exception:
+                pass
+
+        if os.path.exists(self._CONFIG_PATH):
+            try:
+                os.remove(self._CONFIG_PATH)
+                removed = True
+            except Exception:
+                pass
+
+        if removed:
+            self.api_status_label.configure(text="Saved key removed", text_color="green")
+        else:
+            self.api_status_label.configure(text="No saved key to remove", text_color="gray")
     
     def _validate_api_key(self):
         """Validate the API key"""
+        if self._api_validation_in_progress:
+            return
+
         api_key = self.api_key_entry.get().strip()
         
         if not api_key:
@@ -382,29 +507,233 @@ class LLMRedTeamApp(ctk.CTk):
             )
             return
         
+        self._api_validation_in_progress = True
+        if hasattr(self, "validate_btn"):
+            self.validate_btn.configure(state="disabled")
         self.api_status_label.configure(text="⏳ Validating...", text_color="yellow")
         self.update()
         
         # Validate in background thread
         def validate():
-            self.api_handler = HuggingFaceAPIHandler(api_key)
-            is_valid, message = self.api_handler.validate_key()
-            
-            if is_valid:
-                self._save_api_key(api_key)
-                self.after(0, lambda: self._on_api_key_validated())
-            else:
+            try:
+                self.api_handler = HuggingFaceAPIHandler(api_key)
+                is_valid, message = self.api_handler.validate_key()
+                
+                if is_valid:
+                    self._save_api_key(api_key)
+                    self.after(0, lambda: self._on_api_key_validated())
+                else:
+                    self.after(0, lambda: self.api_status_label.configure(
+                        text=f"❌ {message}", 
+                        text_color="red"
+                    ))
+            except Exception:
+                self.logger.exception("API key validation failed")
                 self.after(0, lambda: self.api_status_label.configure(
-                    text=f"❌ {message}", 
+                    text="❌ Validation failed due to an unexpected error",
                     text_color="red"
                 ))
-        
+            finally:
+                self.after(0, self._finish_api_validation)
+
         threading.Thread(target=validate, daemon=True).start()
+
+    def _finish_api_validation(self):
+        self._api_validation_in_progress = False
+        if hasattr(self, "validate_btn"):
+            self.validate_btn.configure(state="normal")
     
     def _on_api_key_validated(self):
         """Handle successful API key validation"""
         self.api_status_label.configure(text="✅ API key validated!", text_color="green")
         self.after(500, self._show_step_2_model_selection)
+
+    def _get_hf_cli_token(self) -> Optional[str]:
+        """Get HuggingFace token from CLI login"""
+        if _HF_HUB_AVAILABLE and HfFolder is not None:
+            try:
+                token = HfFolder.get_token()
+                return token
+            except Exception:
+                self.logger.exception("Failed to read HF CLI token via HfFolder")
+
+        # Fallback: Try reading from file directly
+        token_path = os.path.expanduser("~/.huggingface/token")
+        if os.path.exists(token_path):
+            try:
+                with open(token_path, 'r') as f:
+                    return f.read().strip()
+            except Exception:
+                self.logger.exception("Failed to read HF CLI token file")
+
+        return None
+
+    def _use_hf_cli_token(self, token: str):
+        """Use the HuggingFace CLI token"""
+        if self._hf_token_validation_in_progress:
+            return
+
+        self._hf_token_validation_in_progress = True
+        self.hf_status_label.configure(text="⏳ Validating HF CLI token...", text_color="yellow")
+        self.update()
+
+        def validate():
+            try:
+                self.api_handler = HuggingFaceAPIHandler(token)
+                is_valid, message = self.api_handler.validate_key()
+
+                if is_valid:
+                    self.after(0, lambda: self._on_hf_cli_validated())
+                else:
+                    self.after(0, lambda: self.hf_status_label.configure(
+                        text=f"❌ {message}",
+                        text_color="red"
+                    ))
+            except Exception:
+                self.logger.exception("HF CLI token validation failed")
+                self.after(0, lambda: self.hf_status_label.configure(
+                    text="❌ Validation failed due to an unexpected error",
+                    text_color="red"
+                ))
+            finally:
+                self.after(0, self._finish_hf_token_validation)
+
+        threading.Thread(target=validate, daemon=True).start()
+
+    def _finish_hf_token_validation(self):
+        self._hf_token_validation_in_progress = False
+
+    def _on_hf_cli_validated(self):
+        """Handle successful HF CLI token validation"""
+        self.hf_status_label.configure(text="✅ HF CLI token validated!", text_color="green")
+        self.after(500, self._show_step_2_model_selection)
+
+    def _is_wsl(self) -> bool:
+        """Detect if running inside WSL."""
+        if os.environ.get("WSL_DISTRO_NAME"):
+            return True
+        try:
+            with open("/proc/version", "r", encoding="utf-8") as f:
+                return "microsoft" in f.read().lower()
+        except Exception:
+            return False
+
+    def _get_terminal_command(self) -> Optional[List[str]]:
+        """Find a terminal emulator command for launching CLI login."""
+        candidates = [
+            ["x-terminal-emulator", "-e"],
+            ["gnome-terminal", "--"],
+            ["konsole", "-e"],
+            ["xfce4-terminal", "-e"],
+            ["xterm", "-e"],
+        ]
+        for candidate in candidates:
+            if shutil.which(candidate[0]):
+                return candidate
+        return None
+
+    def _run_hf_cli_login(self):
+        """Run huggingface-cli login command (Linux only)"""
+        import subprocess
+
+        if self._hf_login_in_progress:
+            return
+
+        self._hf_login_in_progress = True
+        if hasattr(self, "hf_login_btn"):
+            self.hf_login_btn.configure(state="disabled")
+
+        self.hf_status_label.configure(
+            text="⏳ Opening terminal for 'huggingface-cli login'...",
+            text_color="yellow"
+        )
+        self.update()
+
+        def run_login():
+            try:
+                terminal_cmd = self._get_terminal_command()
+                if not terminal_cmd:
+                    raise RuntimeError(
+                        "No terminal emulator found. Please run: huggingface-cli login"
+                    )
+                subprocess.Popen(
+                    terminal_cmd + ["huggingface-cli", "login"],
+                    shell=False
+                )
+
+                self.after(0, lambda: self.hf_status_label.configure(
+                    text="Please complete login in the terminal, then click 'Refresh' below",
+                    text_color="blue"
+                ))
+
+                # Add refresh button
+                self.after(0, self._add_refresh_button)
+
+            except Exception as e:
+                self.logger.exception("HF CLI login launch failed")
+                self.after(0, lambda: self.hf_status_label.configure(
+                    text=f"❌ Error: {str(e)}\nManual command: huggingface-cli login",
+                    text_color="red"
+                ))
+            finally:
+                self.after(0, self._finish_hf_cli_launch)
+
+        threading.Thread(target=run_login, daemon=True).start()
+
+    def _finish_hf_cli_launch(self):
+        self._hf_login_in_progress = False
+        if hasattr(self, "hf_login_btn"):
+            self.hf_login_btn.configure(state="normal")
+
+    def _add_refresh_button(self):
+        """Add a refresh button to check for HF CLI token"""
+        # Check if refresh button already exists
+        with self._refresh_btn_lock:
+            if self._refresh_btn_added or hasattr(self, 'refresh_btn'):
+                return
+
+            # Store the parent frame reference during step 1 creation
+            if hasattr(self, 'hf_cli_frame'):
+                self.refresh_btn = ctk.CTkButton(
+                    self.hf_cli_frame,
+                    text="🔄 Refresh (Check if logged in)",
+                    width=250,
+                    height=40,
+                    command=self._refresh_hf_status
+                )
+                self.refresh_btn.pack(pady=10)
+                self._refresh_btn_added = True
+
+    def _refresh_hf_status(self):
+        """Refresh HuggingFace CLI login status"""
+        hf_token = self._get_hf_cli_token()
+
+        if hf_token:
+            self.hf_status_label.configure(
+                text="✅ Logged in! Click continue below",
+                text_color="green"
+            )
+            # Replace refresh button with continue button
+            if hasattr(self, 'refresh_btn'):
+                self.refresh_btn.destroy()
+                delattr(self, 'refresh_btn')
+                self._refresh_btn_added = False
+
+            if hasattr(self, 'hf_cli_frame'):
+                continue_btn = ctk.CTkButton(
+                    self.hf_cli_frame,
+                    text="Continue with HF CLI Token →",
+                    width=250,
+                    height=45,
+                    font=ctk.CTkFont(size=14, weight="bold"),
+                    command=lambda: self._use_hf_cli_token(hf_token)
+                )
+                continue_btn.pack(pady=10)
+        else:
+            self.hf_status_label.configure(
+                text="❌ Not logged in yet. Please run 'pip install -U \"huggingface_hub[cli]\"' first",
+                text_color="red"
+            )
     
     # ==================== STEP 2: MODEL SELECTION ====================
     def _show_step_2_model_selection(self):
@@ -485,13 +814,13 @@ class LLMRedTeamApp(ctk.CTk):
         )
         self.model_search_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
         
-        search_btn = ctk.CTkButton(
+        self.search_btn = ctk.CTkButton(
             search_input_frame,
             text="🔍 Search",
             width=100,
             command=self._search_models
         )
-        search_btn.pack(side="left")
+        self.search_btn.pack(side="left")
         
         # Model list
         self.model_listbox_frame = ctk.CTkScrollableFrame(left_frame, height=200)
@@ -617,15 +946,35 @@ garak --model_type huggingface --model_name {model} --probes promptinject"""
         query = self.model_search_entry.get().strip()
         if not query:
             return
+
+        if self._model_search_in_progress:
+            return
+        self._model_search_in_progress = True
+        if hasattr(self, "search_btn"):
+            self.search_btn.configure(state="disabled")
         
         self.model_status_label.configure(text="⏳ Searching...", text_color="yellow")
         self.update()
         
         def search():
-            models = self.api_handler.search_models(query)
-            self.after(0, lambda: self._display_search_results(models))
+            try:
+                models = self.api_handler.search_models(query)
+                self.after(0, lambda: self._display_search_results(models))
+            except Exception:
+                self.logger.exception("Model search failed")
+                self.after(0, lambda: self.model_status_label.configure(
+                    text="❌ Search failed",
+                    text_color="red"
+                ))
+            finally:
+                self.after(0, self._finish_model_search)
         
         threading.Thread(target=search, daemon=True).start()
+
+    def _finish_model_search(self):
+        self._model_search_in_progress = False
+        if hasattr(self, "search_btn"):
+            self.search_btn.configure(state="normal")
     
     def _display_search_results(self, models: List[Dict]):
         """Display model search results"""
@@ -709,7 +1058,7 @@ garak --model_type huggingface --model_name {model} --probes promptinject"""
         if custom:
             self.selected_model = custom
         
-        if not self.selected_model:
+        if not self.selected_model or not str(self.selected_model).strip():
             messagebox.showwarning("Warning", "Please select a model first")
             return
         
@@ -1042,9 +1391,12 @@ garak --model_type huggingface --model_name {model} --probes promptinject"""
         """Add custom payload"""
         custom = self.custom_payload_entry.get("1.0", "end").strip()
         if custom:
-            self.payload_manager.add_custom_payload(custom)
-            messagebox.showinfo("Success", "Custom payload added!")
-            self.custom_payload_entry.delete("1.0", "end")
+            ok, message = self.payload_manager.add_custom_payload(custom)
+            if ok:
+                messagebox.showinfo("Success", message)
+                self.custom_payload_entry.delete("1.0", "end")
+            else:
+                messagebox.showwarning("Warning", message)
     
     def _confirm_payload_selection(self):
         selected = [k for k, v in self.payload_vars.items() if v.get()]
@@ -1279,6 +1631,9 @@ Custom Payloads: {len(self.payload_manager.custom_payloads)}
             
             for probe_id in config['probes']:
                 probe = self.probe_manager.get_probe(probe_id)
+                if not probe:
+                    self.logger.warning("Unknown probe id skipped: %s", probe_id)
+                    continue
                 
                 for payload in config['payloads']:
                     if isinstance(payload, str):
@@ -1289,11 +1644,16 @@ Custom Payloads: {len(self.payload_manager.custom_payloads)}
                         payload_name = self.payload_manager.get_payload_name(payload)
                     
                     # Combine probe and payload
-                    full_prompt = probe['template'].format(payload=payload_text)
+                    full_prompt = self.probe_manager.format_probe_prompt(
+                        probe_id, payload_text
+                    )
+                    if not full_prompt:
+                        self.logger.warning("Failed to format prompt for probe: %s", probe_id)
+                        continue
                     
                     for gen in range(config['generations']):
                         current += 1
-                        progress = current / total
+                        progress = current / total if total else 1.0
                         
                         self.after(0, lambda p=progress, c=current, t=total: 
                             self._update_progress(p, f"Testing {c}/{t}..."))
@@ -1575,9 +1935,11 @@ Custom Payloads: {len(self.payload_manager.custom_payloads)}
             filetypes=[("JSON files", "*.json")]
         )
         if filepath:
-            with open(filepath, 'w') as f:
-                json.dump(self.test_results, f, indent=2)
-            messagebox.showinfo("Success", f"Results exported to {filepath}")
+            ok, message = self.results_manager.export_json(self.test_results, filepath)
+            if ok:
+                messagebox.showinfo("Success", f"Results exported to {filepath}")
+            else:
+                messagebox.showerror("Export Failed", message)
     
     def _export_csv(self):
         """Export results as CSV"""
@@ -1586,14 +1948,15 @@ Custom Payloads: {len(self.payload_manager.custom_payloads)}
             filetypes=[("CSV files", "*.csv")]
         )
         if filepath:
-            with open(filepath, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=self.test_results[0].keys())
-                writer.writeheader()
-                writer.writerows(self.test_results)
-            messagebox.showinfo("Success", f"Results exported to {filepath}")
+            ok, message = self.results_manager.export_csv(self.test_results, filepath)
+            if ok:
+                messagebox.showinfo("Success", f"Results exported to {filepath}")
+            else:
+                messagebox.showerror("Export Failed", message)
 
 
 def main():
+    _configure_wslg_env()
     app = LLMRedTeamApp()
     app.mainloop()
 
