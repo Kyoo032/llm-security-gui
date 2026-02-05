@@ -35,25 +35,52 @@ class HuggingFaceAPIHandler:
     def validate_key(self) -> Tuple[bool, str]:
         """Validate the API key by making a test request"""
         try:
-            # Try to get user info
+            # Log what we're sending (for debugging)
+            self.logger.info("=" * 60)
+            self.logger.info("Validating HuggingFace token...")
+            self.logger.info(f"Token length: {len(self.api_key)}")
+            self.logger.info(f"Token starts with 'hf_': {self.api_key.startswith('hf_')}")
+            self.logger.info(f"Token prefix (first 10 chars): {self.api_key[:10] if len(self.api_key) >= 10 else self.api_key}")
+            self.logger.info(f"Authorization header: Bearer {self.api_key[:10]}...")
+
+            # Try to get user info (using v2 API for modern tokens)
             response = self.session.get(
-                "https://huggingface.co/api/whoami",
+                "https://huggingface.co/api/whoami-v2",
                 timeout=self.timeouts["validate"]
             )
-            
+
+            # Log the response details
+            self.logger.info(f"Response status code: {response.status_code}")
+            self.logger.info(f"Response headers: {dict(response.headers)}")
+            self.logger.info(f"Response body: {response.text[:500]}")  # First 500 chars
+            self.logger.info("=" * 60)
+
             if response.status_code == 200:
                 data = response.json()
                 username = data.get('name', 'User')
+                self.logger.info(f"✓ Validation successful for user: {username}")
                 return True, f"Welcome, {username}!"
             elif response.status_code == 401:
-                return False, "Invalid API key"
+                # Include response body in error message for debugging
+                error_detail = response.text[:200] if response.text else "No error details"
+                self.logger.error(f"401 Unauthorized. API response: {error_detail}")
+                return False, f"Invalid or expired token. API response: {error_detail}"
+            elif response.status_code == 403:
+                error_detail = response.text[:200] if response.text else "No error details"
+                self.logger.error(f"403 Forbidden. API response: {error_detail}")
+                return False, f"Token lacks required permissions. API response: {error_detail}"
+            elif response.status_code == 429:
+                return False, "Rate limited. Try again in a few moments"
             else:
-                return False, f"API error: {response.status_code}"
-                
+                error_detail = response.text[:200] if response.text else "No error details"
+                return False, f"API error {response.status_code}: {error_detail}"
+
         except requests.exceptions.Timeout:
-            return False, "Connection timeout"
-        except requests.exceptions.ConnectionError:
-            return False, "Connection error"
+            self.logger.error("Network timeout during validation")
+            return False, "Network timeout. Check your internet connection"
+        except requests.exceptions.ConnectionError as e:
+            self.logger.error(f"Connection error: {e}")
+            return False, "Cannot reach HuggingFace servers. Check your internet connection"
         except Exception as e:
             self.logger.exception("validate_key failed")
             return False, f"Error: {str(e)}"
