@@ -24,6 +24,7 @@ wheels/
 venv/
 env/
 ENV/
+.venv/
 
 # IDE
 .vscode/
@@ -42,3 +43,11 @@ Thumbs.db
 # Project specific
 results/
 *.log
+legacy/
+
+# Virtual environments (project-specific)
+GUI/
+Security/
+
+# Windows artifacts
+nul
