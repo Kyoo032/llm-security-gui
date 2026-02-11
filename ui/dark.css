@@ -1,278 +1,538 @@
-/* ── LLM Red Team – Dark Theme ── */
+/* ── Garak LLM Security Tester – Dark Theme ── */
 
 /* ─── Base window ─── */
 window {
-  background-color: #14171c;
-  color: #e4e8ee;
+  background-color: #2b2b2b;
+  color: #e0e0e0;
 }
 
-/* ─── Header strip ─── */
-.header-strip {
-  background-color: #242a33;
-  padding: 8px 4px;
-  border-bottom: 1px solid #2e3540;
+/* ─── Wizard shell ─── */
+.wizard-shell {
+  background-color: #2b2b2b;
 }
 
-.app-title {
-  font-size: 15px;
+/* ─── Sidebar ─── */
+.sidebar {
+  background-color: #353535;
+  padding: 0;
+}
+
+.sidebar-title {
+  font-size: 13px;
   font-weight: 700;
-  color: #ff8a2a;
-  letter-spacing: 0.5px;
+  color: #ff6b35;
+  padding: 15px 15px 10px 15px;
 }
 
-.eta-label {
-  font-family: monospace;
-  font-size: 13px;
-  color: #8b95a5;
-  padding: 0 8px;
+/* Step list */
+.step-list {
+  background-color: #353535;
 }
 
-.status-label {
+.step-list row {
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  outline: none;
+}
+
+.step-list row:hover {
+  background-color: #404040;
+}
+
+.step-row {
+  padding: 8px 12px;
+  margin: 2px 8px;
+  border-radius: 4px;
+  background-color: #2d2d2d;
+}
+
+.step-row:hover {
+  background-color: #404040;
+}
+
+.step-row-current {
+  background-color: #ff6b35;
+}
+
+.step-row-current label {
+  color: white;
+}
+
+.step-row-completed {
+  background-color: #2d2d2d;
+}
+
+.step-label {
   font-size: 13px;
-  color: #8b95a5;
+  color: #e0e0e0;
+}
+
+.step-label-disabled {
+  font-size: 13px;
+  color: #666666;
+}
+
+.step-check {
+  font-size: 13px;
+  color: #4caf50;
+}
+
+/* ─── Content area ─── */
+.content-area {
+  background-color: #353535;
+  padding: 20px;
+  border-radius: 4px;
+  margin: 10px;
+}
+
+.step-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e0e0e0;
+  margin-bottom: 20px;
+}
+
+/* ─── Section headings ─── */
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ff6b35;
+  margin-bottom: 12px;
+  margin-top: 8px;
+}
+
+/* ─── Status bar ─── */
+.status-bar {
+  background-color: #353535;
+  border-top: 1px solid #555555;
+  padding: 8px 20px;
+}
+
+.status-dot-ok {
+  font-size: 14px;
+  color: #4caf50;
+}
+
+.status-dot-fail {
+  font-size: 14px;
+  color: #f44336;
+}
+
+.status-dot-pending {
+  font-size: 14px;
+  color: #b0b0b0;
+}
+
+.status-dot-running {
+  font-size: 14px;
+  color: #ff9800;
+}
+
+.status-text {
+  font-size: 13px;
+  color: #e0e0e0;
   padding: 0 4px;
 }
 
-/* ─── Footer strip ─── */
-.footer-strip {
-  background-color: #242a33;
-  border-top: 1px solid #2e3540;
+.context-info {
+  font-size: 13px;
+  color: #b0b0b0;
 }
 
-/* ─── Run button (prominent orange) ─── */
-.run-button {
+/* ─── Navigation buttons ─── */
+.nav-button-next {
   background-image: none;
-  background-color: #ff8a2a;
-  color: #111318;
+  background-color: #ff6b35;
+  color: white;
   font-weight: 700;
   font-size: 13px;
   border: none;
-  border-radius: 5px;
-  padding: 4px 20px;
-  min-width: 70px;
+  border-radius: 4px;
+  padding: 10px 20px;
 }
 
-.run-button:hover {
+.nav-button-next:hover {
   background-image: none;
-  background-color: #ffaa55;
+  background-color: #ff8555;
 }
 
-.run-button:active {
+.nav-button-next:active {
   background-image: none;
-  background-color: #e07520;
+  background-color: #e05a28;
 }
 
-.run-button:disabled {
+.nav-button-next:disabled {
   background-image: none;
-  background-color: #3d4655;
-  color: #6b7585;
+  background-color: #4a4a4a;
+  color: #666666;
+}
+
+.nav-button-back {
+  background-image: none;
+  background-color: #555555;
+  color: white;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+}
+
+.nav-button-back:hover {
+  background-image: none;
+  background-color: #666666;
+}
+
+.nav-button-back:active {
+  background-image: none;
+  background-color: #444444;
 }
 
 /* ─── Generic buttons ─── */
 button {
   background-image: none;
-  background-color: #2e3540;
-  color: #e4e8ee;
-  border: 1px solid #3d4655;
+  background-color: #555555;
+  color: #e0e0e0;
+  border: none;
   border-radius: 4px;
-  padding: 4px 14px;
+  padding: 8px 16px;
 }
 
 button:hover {
   background-image: none;
-  background-color: #3d4655;
+  background-color: #666666;
 }
 
 button:active {
   background-image: none;
-  background-color: #4a5568;
+  background-color: #444444;
 }
 
 button:disabled {
   background-image: none;
-  background-color: #1c2028;
-  color: #4a5568;
-  border-color: #2e3540;
+  background-color: #3a3a3a;
+  color: #666666;
 }
 
-/* ─── Model selector combo ─── */
+/* ─── Preset buttons (secondary style) ─── */
+.preset-button {
+  background-image: none;
+  background-color: #555555;
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+}
+
+.preset-button:hover {
+  background-image: none;
+  background-color: #666666;
+}
+
+/* ─── Check/status display ─── */
+.status-box {
+  background-color: #2d2d2d;
+  border-radius: 4px;
+  padding: 12px 16px;
+}
+
+.status-ok {
+  font-size: 14px;
+  color: #4caf50;
+}
+
+.status-fail {
+  font-size: 14px;
+  color: #f44336;
+}
+
+.status-pending {
+  font-size: 14px;
+  color: #b0b0b0;
+}
+
+.status-instruction {
+  font-family: monospace;
+  font-size: 13px;
+  color: #e0e0e0;
+  background-color: #2d2d2d;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+/* ─── Form inputs ─── */
+entry,
+searchentry {
+  background-color: #2d2d2d;
+  color: #e0e0e0;
+  border: 1px solid #555555;
+  border-radius: 4px;
+  padding: 8px 10px;
+  caret-color: #ff6b35;
+  font-size: 14px;
+}
+
+entry:focus,
+searchentry:focus {
+  border-color: #ff6b35;
+  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.3);
+}
+
+entry:disabled {
+  background-color: #3a3a3a;
+  color: #666666;
+  border-color: #4a4a4a;
+}
+
+searchentry image {
+  color: #b0b0b0;
+}
+
+/* ─── Labels ─── */
+label {
+  color: #e0e0e0;
+}
+
+.label-muted {
+  color: #b0b0b0;
+}
+
+.label-input {
+  font-size: 13px;
+  color: #b0b0b0;
+  margin-bottom: 4px;
+}
+
+/* ─── Radio buttons ─── */
+radiobutton {
+  color: #e0e0e0;
+}
+
+radiobutton radio {
+  background-image: none;
+  background-color: #2d2d2d;
+  border: 1px solid #555555;
+  color: #e0e0e0;
+}
+
+radiobutton radio:checked {
+  background-image: none;
+  background-color: #ff6b35;
+  border-color: #ff6b35;
+}
+
+radiobutton:disabled {
+  color: #666666;
+}
+
+radiobutton radio:disabled {
+  background-image: none;
+  background-color: #3a3a3a;
+  border-color: #4a4a4a;
+}
+
+/* ─── Checkboxes ─── */
+checkbutton {
+  color: #e0e0e0;
+}
+
+checkbutton check {
+  background-image: none;
+  background-color: #2d2d2d;
+  border: 1px solid #555555;
+  border-radius: 3px;
+  min-width: 18px;
+  min-height: 18px;
+}
+
+checkbutton check:checked {
+  background-image: none;
+  background-color: #ff6b35;
+  border-color: #ff6b35;
+  color: white;
+}
+
+checkbutton check:disabled {
+  background-image: none;
+  background-color: #3a3a3a;
+  border-color: #4a4a4a;
+}
+
+/* ─── Checkbox grid (probe selection) ─── */
+.checkbox-grid {
+  background-color: #2d2d2d;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.checkbox-grid checkbutton {
+  margin: 4px 8px;
+  min-width: 180px;
+}
+
+/* ─── Combo box / dropdown ─── */
 combobox button {
   background-image: none;
-  background-color: #2e3540;
-  color: #e4e8ee;
-  border: 1px solid #3d4655;
+  background-color: #2d2d2d;
+  color: #e0e0e0;
+  border: 1px solid #555555;
   border-radius: 4px;
-  padding: 4px 10px;
-  min-width: 160px;
+  padding: 8px 10px;
 }
 
 combobox button:hover {
   background-image: none;
-  background-color: #3d4655;
+  background-color: #404040;
 }
 
 combobox arrow {
-  color: #8b95a5;
+  color: #b0b0b0;
 }
 
 combobox window menu {
-  background-color: #242a33;
-  color: #e4e8ee;
-  border: 1px solid #3d4655;
+  background-color: #3a3a3a;
+  color: #e0e0e0;
+  border: 1px solid #555555;
 }
 
 combobox window menu menuitem:hover {
-  background-color: #ff8a2a;
-  color: #111318;
+  background-color: #ff6b35;
+  color: white;
 }
 
-/* ─── Checkbox toggles in tree ─── */
-treeview.view check {
-  background-image: none;
-  background-color: #2e3540;
-  border: 1px solid #3d4655;
-  border-radius: 3px;
-  min-width: 14px;
-  min-height: 14px;
-}
-
-treeview.view check:checked {
-  background-image: none;
-  background-color: #ff8a2a;
-  border-color: #ff8a2a;
-  color: #111318;
-}
-
-treeview.view check:disabled {
-  background-image: none;
-  background-color: #1c2028;
-  border-color: #2e3540;
-}
-
-/* ─── Tree panels ─── */
-.tree-panel {
-  background-color: #1c2028;
-}
-
-.panel-heading {
-  font-size: 11px;
-  font-weight: 700;
-  color: #8b95a5;
-  letter-spacing: 1.5px;
-}
-
-/* ─── TreeView ─── */
-treeview.view {
-  background-color: #1c2028;
-  color: #e4e8ee;
-  -GtkTreeView-grid-line-width: 0;
-  -GtkTreeView-horizontal-separator: 6;
-  -GtkTreeView-vertical-separator: 4;
-}
-
-treeview.view header button {
-  background-image: none;
-  background-color: #242a33;
-  color: #8b95a5;
-  border: none;
-  border-bottom: 1px solid #2e3540;
-}
-
-/* Row hover */
-treeview.view:hover {
-  background-color: #242a33;
-}
-
-/* Selection: focused (active pane) — bright orange */
-treeview.view:selected {
-  background-color: #ff8a2a;
-  color: #111318;
-}
-
-treeview.view:selected:focus {
-  background-color: #ff8a2a;
-  color: #111318;
-}
-
-/* Selection: unfocused (other pane) — dimmer orange, still visible */
-treeview.view:selected:backdrop {
-  background-color: #cc6e20;
-  color: #111318;
-}
-
-/* ─── Search entries ─── */
-searchentry,
-entry {
-  background-color: #14171c;
-  color: #e4e8ee;
-  border: 1px solid #2e3540;
+/* ─── Spin button ─── */
+spinbutton {
+  background-color: #2d2d2d;
+  color: #e0e0e0;
+  border: 1px solid #555555;
   border-radius: 4px;
-  padding: 4px 8px;
-  caret-color: #ff8a2a;
+  font-size: 14px;
 }
 
-searchentry:focus,
-entry:focus {
-  border-color: #ff8a2a;
-  box-shadow: 0 0 0 1px rgba(255, 138, 42, 0.3);
-}
-
-searchentry image {
-  color: #8b95a5;
-}
-
-/* ─── Detail notebook ─── */
-.detail-notebook {
-  background-color: #1c2028;
-}
-
-notebook.detail-notebook header {
-  background-color: #1c2028;
-  border-bottom: 1px solid #2e3540;
-}
-
-notebook.detail-notebook header tab {
-  background-color: transparent;
-  color: #8b95a5;
+spinbutton button {
+  background-image: none;
+  background-color: #3a3a3a;
+  color: #e0e0e0;
   border: none;
-  border-bottom: 2px solid transparent;
-  padding: 6px 16px;
+  padding: 2px 6px;
+  min-width: 20px;
 }
 
-notebook.detail-notebook header tab:checked {
-  color: #ff8a2a;
-  border-bottom: 2px solid #ff8a2a;
-  background-color: transparent;
+spinbutton button:hover {
+  background-image: none;
+  background-color: #4a4a4a;
 }
 
-notebook.detail-notebook header tab:hover {
-  color: #e4e8ee;
-  background-color: rgba(255, 255, 255, 0.03);
+/* ─── Progress bar ─── */
+progressbar trough {
+  background-color: #2d2d2d;
+  border-radius: 3px;
+  min-height: 18px;
 }
 
-notebook.detail-notebook stack {
-  background-color: #1c2028;
+progressbar progress {
+  background-color: #ff6b35;
+  background-image: none;
+  border-radius: 3px;
+  min-height: 18px;
 }
 
-/* Viewport inside detail tabs */
-viewport {
-  background-color: #1c2028;
+progressbar text {
+  color: #e0e0e0;
+  font-size: 12px;
 }
 
-/* ─── Labels inside detail area ─── */
-label {
-  color: #e4e8ee;
+/* ─── Live output text view ─── */
+.garak-output {
+  background-color: #1d1d1d;
+  color: #c9d1d9;
+  font-family: monospace;
+  font-size: 12px;
 }
 
-/* ─── Paned dividers ─── */
-paned > separator {
-  background-color: #2e3540;
-  min-width: 3px;
-  min-height: 3px;
+.garak-output text {
+  background-color: #1d1d1d;
+  color: #c9d1d9;
 }
 
-paned > separator:hover {
-  background-color: #ff8a2a;
+/* ─── Result cards ─── */
+.result-card {
+  background-color: #2d2d2d;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 10px;
+}
+
+.result-card-pass {
+  border-left: 4px solid #4caf50;
+}
+
+.result-card-fail {
+  border-left: 4px solid #f44336;
+}
+
+/* ─── PASS/FAIL badges ─── */
+.badge-pass {
+  background-color: #4caf50;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 12px;
+  padding: 4px 12px;
+}
+
+.badge-fail {
+  background-color: #f44336;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 12px;
+  padding: 4px 12px;
+}
+
+/* ─── Summary stat cards ─── */
+.stat-card {
+  background-color: #2d2d2d;
+  border-radius: 4px;
+  padding: 15px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.stat-value-accent {
+  color: #ff6b35;
+}
+
+.stat-value-pass {
+  color: #4caf50;
+}
+
+.stat-value-fail {
+  color: #f44336;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #b0b0b0;
+}
+
+/* ─── Expander (for result details) ─── */
+expander title {
+  color: #ff6b35;
+  font-size: 13px;
+}
+
+expander > box {
+  background-color: #1d1d1d;
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 8px;
 }
 
 /* ─── Scrollbars ─── */
@@ -281,18 +541,18 @@ scrollbar {
 }
 
 scrollbar slider {
-  background-color: #3d4655;
+  background-color: #4a4a4a;
   border-radius: 99px;
   min-width: 6px;
   min-height: 6px;
 }
 
 scrollbar slider:hover {
-  background-color: #5a6577;
+  background-color: #666666;
 }
 
 scrollbar slider:active {
-  background-color: #ff8a2a;
+  background-color: #ff6b35;
 }
 
 scrollbar.vertical slider {
@@ -305,142 +565,50 @@ scrollbar.horizontal slider {
 
 /* ─── Scrolled windows ─── */
 scrolledwindow {
-  background-color: #1c2028;
+  background-color: transparent;
 }
 
-/* ─── Progress bar ─── */
-progressbar trough {
-  background-color: #14171c;
-  border-radius: 3px;
-  min-height: 18px;
-}
-
-progressbar progress {
-  background-color: #ff8a2a;
-  background-image: none;
-  border-radius: 3px;
-  min-height: 18px;
-}
-
-progressbar text {
-  color: #e4e8ee;
-  font-size: 12px;
-}
-
-/* ─── Separator ─── */
-separator {
-  background-color: #2e3540;
+/* ─── Paned dividers ─── */
+paned > separator {
+  background-color: #4a4a4a;
   min-width: 1px;
   min-height: 1px;
 }
 
-/* ─── Boxes (general) ─── */
+/* ─── Separator ─── */
+separator {
+  background-color: #555555;
+  min-width: 1px;
+  min-height: 1px;
+}
+
+/* ─── Viewport ─── */
+viewport {
+  background-color: transparent;
+}
+
+/* ─── Box ─── */
 box {
   background-color: transparent;
 }
 
-/* ─── Frame (if any remain) ─── */
+/* ─── Frame ─── */
 frame {
-  background-color: #1c2028;
-  border: none;
-}
-
-/* ─── API Check Screen ─── */
-.check-page {
-  background-color: #14171c;
-}
-
-.check-title {
-  font-size: 36px;
-  font-weight: 700;
-  color: #ff8a2a;
-  letter-spacing: 1px;
-}
-
-.check-subtitle {
-  font-size: 16px;
-  color: #6b7585;
-  letter-spacing: 0.5px;
-}
-
-.check-status-ok {
-  font-size: 14px;
-  color: #4ade80;
-}
-
-.check-status-fail {
-  font-size: 14px;
-  color: #f87171;
-}
-
-.check-status-pending {
-  font-size: 14px;
-  color: #6b7585;
-}
-
-.check-instruction {
-  font-family: monospace;
-  font-size: 13px;
-  color: #e4e8ee;
-  background-color: #1c2028;
-  padding: 8px 12px;
-  border-radius: 4px;
-}
-
-.check-continue-btn {
-  background-image: none;
-  background-color: #ff8a2a;
-  color: #111318;
-  font-weight: 700;
-  font-size: 14px;
-  border: none;
-  border-radius: 5px;
-  padding: 8px 32px;
-  min-width: 120px;
-}
-
-.check-continue-btn:hover {
-  background-image: none;
-  background-color: #ffaa55;
-}
-
-.check-continue-btn:disabled {
-  background-image: none;
-  background-color: #3d4655;
-  color: #6b7585;
-}
-
-.check-retry-btn {
-  background-image: none;
   background-color: transparent;
-  color: #8b95a5;
-  border: 1px solid #3d4655;
-  border-radius: 5px;
-  padding: 8px 24px;
-  min-width: 90px;
+  border: none;
 }
 
-.check-retry-btn:hover {
-  background-image: none;
-  background-color: #2e3540;
-  color: #e4e8ee;
+/* ─── ListBox ─── */
+list {
+  background-color: transparent;
 }
 
-.check-api-row {
-  background-color: #1c2028;
-  border-radius: 6px;
-  padding: 12px 16px;
-  min-width: 320px;
+list row {
+  background-color: transparent;
+  outline: none;
 }
 
-.check-api-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e4e8ee;
-}
-
-.check-coming-soon {
-  font-size: 13px;
-  color: #4a5568;
-  font-style: italic;
+list row:selected {
+  background-color: transparent;
+  outline: none;
 }

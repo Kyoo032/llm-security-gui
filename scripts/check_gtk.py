@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import os
+
+
 def _print_fix_steps() -> None:
     print("Fix steps:")
     print("  1) Install system GTK packages:")
@@ -24,6 +27,17 @@ def _print_fix_steps() -> None:
     print("  4) See README GTK Troubleshooting for last-resort symlink workaround.")
 
 
+def _print_display_fix_steps() -> None:
+    print("Display fix steps:")
+    print("  1) Check required env vars in this same shell:")
+    print('     echo "$DISPLAY" "$WAYLAND_DISPLAY" "$XDG_RUNTIME_DIR"')
+    print("  2) If running on WSL2, restart WSLg from Windows PowerShell:")
+    print("     wsl --shutdown")
+    print("     # reopen your Ubuntu shell")
+    print("  3) Re-run this probe from the same activated venv:")
+    print("     python scripts/check_gtk.py")
+
+
 def main() -> int:
     try:
         import gi  # type: ignore
@@ -35,14 +49,30 @@ def main() -> int:
 
     try:
         gi.require_version("Gtk", "3.0")
-        from gi.repository import Gtk  # type: ignore  # noqa: F401
+        gi.require_version("Gdk", "3.0")
+        from gi.repository import Gdk, Gtk  # type: ignore
     except Exception as exc:
         print("[FAIL] Could not import GTK 3.0 bindings via gi.repository.")
         print(f"Reason: {exc.__class__.__name__}: {exc}")
         _print_fix_steps()
         return 1
 
-    print("[OK] GTK preflight passed (gi + Gtk 3.0 import succeeded).")
+    init_result = Gtk.init_check(None)
+    gtk_ready = bool(init_result[0]) if isinstance(init_result, tuple) else bool(init_result)
+    display = Gdk.Display.get_default()
+    display_name = display.get_name() if display is not None else "None"
+
+    if not gtk_ready or display is None:
+        print("[FAIL] GTK imported but could not connect to a display server.")
+        print(f"DISPLAY={os.environ.get('DISPLAY', '(unset)')}")
+        print(f"WAYLAND_DISPLAY={os.environ.get('WAYLAND_DISPLAY', '(unset)')}")
+        print(f"XDG_RUNTIME_DIR={os.environ.get('XDG_RUNTIME_DIR', '(unset)')}")
+        print(f"Gtk.init_check()={gtk_ready}, Gdk.Display.get_default()={display_name}")
+        _print_display_fix_steps()
+        return 1
+
+    print("[OK] GTK preflight passed (import + display connection succeeded).")
+    print(f"Display backend is reachable: {display_name}")
     return 0
 
 
