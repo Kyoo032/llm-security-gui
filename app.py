@@ -178,7 +178,7 @@ def main() -> int:
     _enable_fault_logging(log_dir)
     _install_exception_hook()
     logger = logging.getLogger("gtk_shell.app")
-    logger.info("Starting GTK prototype shell")
+    logger.info("Starting Garak LLM Security Tester")
 
     try:
         _check_display()

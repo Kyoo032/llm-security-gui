@@ -19,10 +19,9 @@ A desktop application for security testing of Large Language Models using the Hu
 - **HuggingFace API integration** - Test any model on HuggingFace Hub
 - **Garak CLI compatibility** - Probes aligned with Garak categories
 - **20+ built-in security probes** - DAN, encoding, promptinject, lmrc, atkgen, gcg
-- **30+ attack payloads** - Covering various security categories
 - **Hardware-aware** - Warnings for 4GB VRAM limitations
-- **Custom payload support** - Add your own attack vectors
-- **Export to JSON/CSV** - For further analysis
+- **Live run monitoring** - Stream Garak output with progress updates
+- **Results summaries** - Per-probe pass/fail cards and run details
 
 ## ⚠️ Hardware Requirements
 
@@ -110,7 +109,31 @@ Preparing metadata (pyproject.toml) did not run successfully
 ERROR: Dependency 'girepository-2.0' is required but not found
 ```
 
-1. Ensure system GTK packages are installed:
+```text
+GTK could not connect to a display server.
+DISPLAY=:0, WAYLAND_DISPLAY=wayland-0
+```
+
+1. Check display connectivity from the same shell/venv you use to launch the app:
+```bash
+python - <<'PY'
+import os, gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
+from gi.repository import Gtk, Gdk
+r = Gtk.init_check(None)
+ok = bool(r[0]) if isinstance(r, tuple) else bool(r)
+print("DISPLAY", os.environ.get("DISPLAY"))
+print("WAYLAND_DISPLAY", os.environ.get("WAYLAND_DISPLAY"))
+print("XDG_RUNTIME_DIR", os.environ.get("XDG_RUNTIME_DIR"))
+print("gtk_init_ok", ok)
+print("gdk_default_display", Gdk.Display.get_default())
+PY
+```
+If `gtk_init_ok` is `False` or `gdk_default_display` is `None`, restart WSLg from
+Windows PowerShell with `wsl --shutdown`, then open a fresh Ubuntu shell and retry.
+
+2. Ensure system GTK packages are installed:
 
 Ubuntu / Debian:
 ```bash
@@ -122,7 +145,7 @@ Arch Linux:
 sudo pacman -Syu --needed python-gobject gtk3
 ```
 
-2. Recreate `.venv` with system package visibility:
+3. Recreate `.venv` with system package visibility:
 ```bash
 rm -rf .venv
 python3 -m venv .venv --system-site-packages
@@ -131,7 +154,7 @@ pip install -r requirements.txt
 python scripts/check_gtk.py
 ```
 
-3. If you must use an isolated venv (no `--system-site-packages`), install native build deps first:
+4. If you must use an isolated venv (no `--system-site-packages`), install native build deps first:
 
 Ubuntu / Debian:
 ```bash
@@ -152,7 +175,7 @@ pip install -r requirements.txt
 python scripts/check_gtk.py
 ```
 
-4. Last resort (advanced only): symlink system `gi` into venv `site-packages`:
+5. Last resort (advanced only): symlink system `gi` into venv `site-packages`:
 ```bash
 source .venv/bin/activate
 VENV_SITE=$(python -c "import site; print(site.getsitepackages()[0])")
@@ -185,17 +208,19 @@ garak --config your_config.yaml
 
 ## 📖 Usage Guide
 
-### Step 1: API Key
-- Enter your HuggingFace API key
-- Key is saved only if you enable “Remember key”
-- Stored in OS keychain when available; otherwise saved to `~/.llm_red_team_config.json` with restricted permissions
+### Step 1: Framework Setup
+- The app checks Garak availability and version
+- If Garak is missing, install it and click retry
 
-### Step 2: Select Model
-- **Verified models** are highlighted (safe for 4GB VRAM)
-- Warnings shown for 7B+ models
-- Garak CLI commands auto-generated
+### Step 2: Authentication
+- The app verifies HuggingFace CLI auth status
+- Login with `hf auth login` if required, then retry
 
-### Step 3: Choose Probes
+### Step 3: Select Model
+- Choose HuggingFace model ID or local endpoint mode
+- `distilgpt2` is pre-filled as a lightweight default
+
+### Step 4: Choose Probes
 Select security probes (aligned with Garak):
 
 | Category | Garak Probe |
@@ -206,33 +231,40 @@ Select security probes (aligned with Garak):
 | **LMRC Risk Cards** | `lmrc` |
 | **Attack Generation** | `atkgen` |
 | **GCG Attacks** | `gcg` |
-| **Multilingual** | `encoding` |
+| **Multilingual Attacks** | `encoding` |
 | **RAG Poisoning** | `promptinject` |
+| **Refusal Bypass** | `dan` |
+| **Goal Hijacking** | `promptinject` |
+| **Data Extraction** | `promptinject` |
 
-### Step 4: Select Payloads
-Choose attack payloads or add custom ones.
-
-### Step 5: Configure & Run
-- Set generations per payload (1-10)
-- Adjust max tokens (50-500)
+### Step 5: Configure Run
+- Set generations, temperature, and max tokens
 - Review Garak CLI commands
-- Start test
+- Choose output format and parallel mode as needed
 
-### Step 6: Results
-- View success/failure rates
-- Export to JSON or CSV
+### Step 6: Run Test
+- Start the assessment and watch live stdout/stderr output
+- Track elapsed time and progress status
+
+### Step 7: Results
+- View pass/fail summaries by probe and detector
+- Inspect detailed failure attempts for each probe
 
 ## 🏗️ Project Structure
 
 ```
 llm_security_gui/
 ├── app.py               # Main GTK application entry point
-├── controller.py        # GTK UI/controller workflow
+├── controller.py        # Wizard coordinator and navigation
+├── check_controller.py  # Step 1-2 checks (Garak + HF auth)
+├── workspace_controller.py # Step 3-5 setup/configuration
+├── run_controller.py    # Step 6 execution and live output
+├── results_controller.py # Step 7 result presentation
 ├── api_handler.py       # HuggingFace API interactions
 ├── probes.py            # Security probes (Garak-aligned)
-├── payloads.py          # Attack payloads
-├── compatibility.py     # Probe/payload compatibility helpers
-├── results_manager.py   # Results storage
+├── hf_cli.py            # HuggingFace CLI detection/auth helpers
+├── garak_runner.py      # Garak subprocess execution wrapper
+├── garak_report_parser.py # Structured parsing of Garak reports
 ├── scripts/check_gtk.py # GTK preflight validation
 ├── requirements.txt     # Dependencies
 └── README.md           # This file
