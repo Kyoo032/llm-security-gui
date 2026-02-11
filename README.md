@@ -48,31 +48,118 @@ Based on verified testing (GTX 1650, 4GB VRAM):
 1. Clone or download this repository:
 ```bash
 git clone <repo-url>
-cd llm_red_team_gui
+cd llm_security_gui
 ```
 
-2. Install dependencies:
+2. Install system GTK dependencies (required for `gi` / GTK 3):
+
+Ubuntu / Debian:
 ```bash
+sudo apt install -y python3-gi gir1.2-gtk-3.0
+```
+
+Arch Linux:
+```bash
+sudo pacman -Syu --needed python-gobject gtk3
+```
+
+3. Create a virtual environment and install Python dependencies:
+```bash
+python3 -m venv .venv --system-site-packages
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. (Optional) Install Garak for CLI integration:
+4. Run the GTK preflight check:
+```bash
+python scripts/check_gtk.py
+```
+
+5. (Optional) Install Garak for CLI integration:
 ```bash
 pip install garak
 garak --version
 ```
 
-4. Set up HuggingFace authentication:
+6. Set up HuggingFace authentication:
 ```bash
-huggingface-cli login
+hf auth login
+hf auth whoami
 # OR
 export HF_TOKEN=your_token_here
 ```
 
-5. Run the application:
+`huggingface-cli login` may still work as a legacy alias, but `hf auth login` is the current command.
+
+7. Run the application:
 ```bash
-python main.py
+python app.py
 ```
+
+### GTK Troubleshooting
+
+If you see either of these errors:
+
+```text
+ModuleNotFoundError: No module named 'gi'
+```
+
+```text
+Preparing metadata (pyproject.toml) did not run successfully
+...
+ERROR: Dependency 'girepository-2.0' is required but not found
+```
+
+1. Ensure system GTK packages are installed:
+
+Ubuntu / Debian:
+```bash
+sudo apt install -y python3-gi gir1.2-gtk-3.0
+```
+
+Arch Linux:
+```bash
+sudo pacman -Syu --needed python-gobject gtk3
+```
+
+2. Recreate `.venv` with system package visibility:
+```bash
+rm -rf .venv
+python3 -m venv .venv --system-site-packages
+source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/check_gtk.py
+```
+
+3. If you must use an isolated venv (no `--system-site-packages`), install native build deps first:
+
+Ubuntu / Debian:
+```bash
+sudo apt install -y build-essential pkg-config cmake gobject-introspection libgirepository-2.0-dev libcairo2-dev python3-dev
+```
+
+Arch Linux:
+```bash
+sudo pacman -Syu --needed base-devel pkgconf cmake gobject-introspection cairo python
+```
+
+Then create isolated venv and install:
+```bash
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/check_gtk.py
+```
+
+4. Last resort (advanced only): symlink system `gi` into venv `site-packages`:
+```bash
+source .venv/bin/activate
+VENV_SITE=$(python -c "import site; print(site.getsitepackages()[0])")
+SYS_GI=$(python3 -c "import gi, pathlib; print(pathlib.Path(gi.__file__).resolve().parent)")
+ln -s "$SYS_GI" "$VENV_SITE/gi"
+```
+Use this only if package installs are blocked; `--system-site-packages` is preferred.
 
 ## 🔬 Garak Integration
 
@@ -138,13 +225,15 @@ Choose attack payloads or add custom ones.
 ## 🏗️ Project Structure
 
 ```
-llm_red_team_gui/
-├── main.py              # Main GUI application
+llm_security_gui/
+├── app.py               # Main GTK application entry point
+├── controller.py        # GTK UI/controller workflow
 ├── api_handler.py       # HuggingFace API interactions
 ├── probes.py            # Security probes (Garak-aligned)
 ├── payloads.py          # Attack payloads
-├── garak_runner.py      # Garak CLI integration
+├── compatibility.py     # Probe/payload compatibility helpers
 ├── results_manager.py   # Results storage
+├── scripts/check_gtk.py # GTK preflight validation
 ├── requirements.txt     # Dependencies
 └── README.md           # This file
 ```
