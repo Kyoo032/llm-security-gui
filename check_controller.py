@@ -111,7 +111,7 @@ class CheckController:
 
         # Nav buttons
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        nav.set_margin_top(30)
+        nav.set_margin_top(24)
 
         self._step1_next_btn = Gtk.Button(label="Next: Authentication \u2192")
         self._step1_next_btn.get_style_context().add_class("nav-button-next")
@@ -259,7 +259,7 @@ class CheckController:
 
         # Nav buttons
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        nav.set_margin_top(30)
+        nav.set_margin_top(24)
 
         self._step2_back_btn = Gtk.Button(label="\u2190 Back")
         self._step2_back_btn.get_style_context().add_class("nav-button-back")

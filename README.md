@@ -1,48 +1,70 @@
-# 🛡️ LLM Red Team GUI
+# LLM Red Team GUI
 
-A desktop application for security testing of Large Language Models using the HuggingFace Inference API, with Garak CLI integration.
+A GTK desktop GUI for [Garak](https://github.com/NVIDIA/garak), the LLM vulnerability scanner. Instead of memorizing Garak CLI commands and probe names, this app lets you visually browse probes, configure scans, and read results through a guided step-by-step wizard.
 
-## 🐧 Platform Support
+## What is Garak?
+
+[Garak](https://github.com/NVIDIA/garak) (Generative AI Red-teaming & Assessment Kit) is NVIDIA's open-source vulnerability scanner for large language models. It automatically probes LLMs for:
+
+- **Jailbreaks** — bypassing safety alignment (DAN, roleplay, hypothetical framing)
+- **Prompt injection** — hijacking model behavior through crafted inputs
+- **Data leakage** — extracting training data or system prompts
+- **Encoding attacks** — obfuscation via Base64, ROT13, hex, Unicode
+- **Toxicity & bias** — generating harmful or biased content
+- **Hallucination** — producing false or fabricated information
+
+Garak is normally run from the command line:
+
+```bash
+garak --model_type huggingface --model_name distilgpt2 --probes dan,encoding,promptinject
+```
+
+**This GUI eliminates the need to remember those commands.** You select probes from categorized checkboxes, pick a model, configure parameters, and click run. The app builds the Garak command, executes it, and parses the results into a readable format.
+
+- [Garak GitHub](https://github.com/NVIDIA/garak) | [Garak Docs](https://docs.garak.ai)
+
+## Platform Support
 
 | Platform | Status |
 |----------|--------|
-| Linux (native) | ✅ Fully supported |
-| WSL2 | ✅ Fully supported |
-| macOS | ⚠️ Not tested |
-| Windows (native) | ❌ Not supported |
+| Linux (native) | Fully supported |
+| WSL2 | Fully supported |
+| macOS | Not tested |
+| Windows (native) | Not supported |
 
 **This application is designed for Linux only.** Windows users should run it in WSL2.
 
-## 🚀 Features
+## Features
 
-- **Step-by-step wizard interface** - Easy to follow workflow
-- **HuggingFace API integration** - Test any model on HuggingFace Hub
-- **Garak CLI compatibility** - Probes aligned with Garak categories
-- **20+ built-in security probes** - DAN, encoding, promptinject, lmrc, atkgen, gcg
-- **Hardware-aware** - Warnings for 4GB VRAM limitations
-- **Live run monitoring** - Stream Garak output with progress updates
-- **Results summaries** - Per-probe pass/fail cards and run details
+- **Visual probe browser** — select Garak probes from categorized checkboxes instead of memorizing probe names
+- **Guided setup wizard** — 7-step flow handles Garak detection, HuggingFace auth, model selection, probe picking, and configuration
+- **Readable results** — pass/fail summary cards per probe with detailed failure inspection, parsed from Garak's JSONL report output
+- **Live output streaming** — watch Garak stdout/stderr in real time with elapsed time and progress tracking
+- **HuggingFace integration** — test any model on HuggingFace Hub or a local endpoint
+- **Configurable parameters** — set generations, temperature, and max tokens from the GUI
+- **Hardware-aware** — warnings for 4GB VRAM limitations with verified model recommendations
 
-## ⚠️ Hardware Requirements
+## Hardware Requirements
 
 Based on verified testing (GTX 1650, 4GB VRAM):
 
 | Model | Status |
 |-------|--------|
-| distilgpt2 | ✅ Recommended |
-| gpt2 | ✅ Works |
-| gpt2-medium | ✅ Works |
-| TinyLlama-1.1B | ✅ Works |
-| 7B+ models | ❌ Too large |
+| distilgpt2 | Recommended |
+| gpt2 | Works |
+| gpt2-medium | Works |
+| TinyLlama-1.1B | Works |
+| 7B+ models | Too large |
 
-## 📋 Requirements
+## Requirements
 
 - **Linux** (native or WSL2)
 - Python 3.10+ (required for Garak)
+- Garak (`pip install garak`)
 - HuggingFace API key ([get one here](https://huggingface.co/settings/tokens))
 - WSL2 + Ubuntu 22.04 (recommended for Windows users)
 
-## 🔧 Installation
+## Installation
 
 1. Clone or download this repository:
 ```bash
@@ -74,9 +96,8 @@ pip install -r requirements.txt
 python scripts/check_gtk.py
 ```
 
-5. (Optional) Install Garak for CLI integration:
+5. Verify Garak is installed:
 ```bash
-pip install garak
 garak --version
 ```
 
@@ -184,33 +205,76 @@ ln -s "$SYS_GI" "$VENV_SITE/gi"
 ```
 Use this only if package installs are blocked; `--system-site-packages` is preferred.
 
-## 🔬 Garak Integration
+## How It Works
 
-This app's probes are aligned with Garak categories for compatibility:
+This GUI is a frontend for Garak. It does not implement its own probes or payloads — all security testing runs through Garak's CLI.
 
-| Garak Probe | Description | CLI Command |
-|-------------|-------------|-------------|
-| `encoding` | Encoding-based bypasses | `garak --model_type huggingface --model_name gpt2 --probes encoding` |
-| `dan` | "Do Anything Now" jailbreaks | `garak --model_type huggingface --model_name distilgpt2 --probes dan` |
-| `promptinject` | Direct prompt injection | `garak --model_type huggingface --model_name distilgpt2 --probes promptinject.HijackHateHumansMini` |
-| `lmrc` | Language Model Risk Cards | `garak --model_type huggingface --model_name gpt2 --probes lmrc` |
-| `atkgen` | Attack generation | `garak --model_type huggingface --model_name gpt2 --probes atkgen` |
-| `gcg` | Greedy Coordinate Gradient | `garak --model_type huggingface --model_name gpt2 --probes gcg` |
+```
+  GUI Wizard                    Garak CLI                     Output
+ +-----------+    builds     +----------------+   produces   +------------------+
+ | Select    | ------------> | python -m garak|  ---------> | .report.jsonl    |
+ | probes,   |   command     | --model_type   |             | .hitlog.jsonl    |
+ | model,    |               | --model_name   |             +------------------+
+ | config    |               | --probes       |                     |
+ +-----------+               +----------------+                     |
+                                                          parses    |
+ +-----------+                                                      |
+ | Results   | <----------------------------------------------------+
+ | pass/fail |   GarakReportParser reads JSONL
+ | summaries |   and displays per-probe results
+ +-----------+
+```
+
+**Execution flow:**
+1. You select probes and configure parameters in the GUI
+2. The app validates inputs and builds a Garak CLI command
+3. Garak runs as a subprocess with live stdout/stderr streaming to the GUI
+4. When complete, the app parses Garak's `.report.jsonl` and `.hitlog.jsonl` output files
+5. Results are displayed as pass/fail summary cards with detailed attempt data
+
+## Supported Garak Probe Categories
+
+The GUI organizes Garak's probes into these categories:
+
+| Garak Probe | What It Tests | Example CLI |
+|-------------|---------------|-------------|
+| `dan` | "Do Anything Now" jailbreak variants that attempt to bypass safety alignment through persona manipulation | `garak --probes dan` |
+| `encoding` | Obfuscation attacks using Base64, ROT13, hex, reversed text, and Unicode to slip prompts past content filters | `garak --probes encoding` |
+| `promptinject` | Direct prompt injection — instruction override, goal hijacking, delimiter escapes, system prompt extraction | `garak --probes promptinject` |
+| `lmrc` | Language Model Risk Cards — tests for harmful content generation, bias, and other risks defined in research literature | `garak --probes lmrc` |
+| `atkgen` | Automated adversarial prompt generation using a red-team LLM to discover novel attack vectors | `garak --probes atkgen` |
+| `gcg` | Greedy Coordinate Gradient suffix attacks — research-grade optimization-based jailbreaks | `garak --probes gcg` |
+
+The GUI also maps additional attack categories (multilingual bypasses, refusal bypass, RAG poisoning, goal hijacking, data extraction) to the appropriate Garak probes above.
+
+Run `garak --list_probes` to see all available probes beyond what the GUI exposes.
 
 ### Garak Quick Reference
+
 ```bash
+# List available probes, detectors, and generators
 garak --list_probes
 garak --list_detectors
 garak --list_generators
-garak --version
+
+# Run a scan
+garak --model_type huggingface --model_name distilgpt2 --probes dan,encoding
+
+# Run with multiple generations per probe
+garak --model_type huggingface --model_name gpt2 --probes promptinject --generations 5
+
+# Use a config file
 garak --config your_config.yaml
+
+# Check version
+garak --version
 ```
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### Step 1: Framework Setup
 - The app checks Garak availability and version
-- If Garak is missing, install it and click retry
+- If Garak is missing, install it with `pip install garak` and click retry
 
 ### Step 2: Authentication
 - The app verifies HuggingFace CLI auth status
@@ -221,36 +285,26 @@ garak --config your_config.yaml
 - `distilgpt2` is pre-filled as a lightweight default
 
 ### Step 4: Choose Probes
-Select security probes (aligned with Garak):
-
-| Category | Garak Probe |
-|----------|-------------|
-| **DAN Jailbreaks** | `dan` |
-| **Encoding Attacks** | `encoding` |
-| **Prompt Injection** | `promptinject` |
-| **LMRC Risk Cards** | `lmrc` |
-| **Attack Generation** | `atkgen` |
-| **GCG Attacks** | `gcg` |
-| **Multilingual Attacks** | `encoding` |
-| **RAG Poisoning** | `promptinject` |
-| **Refusal Bypass** | `dan` |
-| **Goal Hijacking** | `promptinject` |
-| **Data Extraction** | `promptinject` |
+- Browse Garak probes organized by attack category
+- Select individual probes or use preset groups ("Recommended Set", "Advanced Threats")
+- The GUI shows which Garak probe each selection maps to
 
 ### Step 5: Configure Run
 - Set generations, temperature, and max tokens
-- Review Garak CLI commands
+- Review the Garak CLI commands that will be executed
 - Choose output format and parallel mode as needed
 
 ### Step 6: Run Test
-- Start the assessment and watch live stdout/stderr output
+- Start the assessment and watch live Garak output
 - Track elapsed time and progress status
+- Cancel at any time
 
 ### Step 7: Results
 - View pass/fail summaries by probe and detector
 - Inspect detailed failure attempts for each probe
+- Export or save results
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 llm_security_gui/
@@ -261,35 +315,16 @@ llm_security_gui/
 ├── run_controller.py    # Step 6 execution and live output
 ├── results_controller.py # Step 7 result presentation
 ├── api_handler.py       # HuggingFace API interactions
-├── probes.py            # Security probes (Garak-aligned)
+├── probes.py            # Garak probe categories and UI mappings
 ├── hf_cli.py            # HuggingFace CLI detection/auth helpers
 ├── garak_runner.py      # Garak subprocess execution wrapper
-├── garak_report_parser.py # Structured parsing of Garak reports
+├── garak_report_parser.py # Structured parsing of Garak JSONL reports
 ├── scripts/check_gtk.py # GTK preflight validation
-├── requirements.txt     # Dependencies
+├── requirements.txt     # Dependencies (includes garak)
 └── README.md           # This file
 ```
 
-## 🔬 Attack Vectors (from Garak Reference)
-
-- **Prompt Injection** — direct manipulation via user input
-- **Jailbreaking** — bypassing safety guardrails (DAN, encoding, multilingual)
-- **System Prompt Extraction** — leaking system instructions
-- **Data Extraction** — exfiltrating training/context data
-- **Refusal Bypass** — circumventing content filters
-- **Goal Hijacking** — redirecting model behavior
-- **RAG Poisoning** — injecting malicious content into vector stores
-
-## 🛡️ Defense Mechanisms (Know to Beat)
-
-- **Guardrails AI** — input/output validation
-- **NeMo Guardrails** — NVIDIA's dialog safety
-- **Rebuff** — prompt injection detection
-- **LLM Guard** — comprehensive protection
-
-Key defenses: input/output filters, semantic similarity checks, canary tokens.
-
-## ⚠️ Responsible Use
+## Responsible Use
 
 This tool is intended for:
 - Security researchers
@@ -302,13 +337,14 @@ This tool is intended for:
 - Creating actual harmful content
 - Any illegal activities
 
-## 📚 Resources
+## Resources
 
-- [Garak Docs](https://github.com/leondz/garak)
+- [Garak GitHub](https://github.com/NVIDIA/garak) — LLM vulnerability scanner
+- [Garak Documentation](https://docs.garak.ai) — probes, detectors, generators reference
 - [OWASP LLM Top 10](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 - [HuggingFace NLP Course](https://huggingface.co/learn/nlp-course)
 - [Gandalf Challenge](https://gandalf.lakera.ai) — CTF for prompt injection
 
-## 📄 License
+## License
 
 MIT License - Use responsibly.

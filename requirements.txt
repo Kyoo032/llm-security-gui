@@ -6,3 +6,4 @@
 PyGObject
 huggingface_hub[cli]>=0.20.0
 requests>=2.31.0
+garak

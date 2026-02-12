@@ -99,7 +99,7 @@ class RunController:
 
         # Cancel button
         btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        btn_box.set_margin_top(16)
+        btn_box.set_margin_top(12)
 
         self._cancel_btn = Gtk.Button(label="Cancel Run")
         self._cancel_btn.get_style_context().add_class("nav-button-back")
