@@ -11,8 +11,10 @@ import threading
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
-_SAFE_MODEL_PATTERN = re.compile(r"^[a-zA-Z0-9_\-./: ]+$")
-_SAFE_PROBE_PATTERN = re.compile(r"^[a-zA-Z0-9_. ]+$")
+_SAFE_MODEL_PATTERN = re.compile(r"^[a-zA-Z0-9_.\-]+(?:/[a-zA-Z0-9_.\-]+)*$")
+_SAFE_PROBE_PATTERN = re.compile(r"^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*$")
+_REPORT_PATH_PATTERN = re.compile(r"([\w./\-]+\.report\.jsonl)")
+_HITLOG_PATH_PATTERN = re.compile(r"([\w./\-]+\.hitlog\.jsonl)")
 
 
 @dataclass(frozen=True)
@@ -64,12 +66,16 @@ class GarakRunner:
         """Build a validated garak CLI command as argument list."""
         if not config.model_name or len(config.model_name) > 256:
             raise ValueError(f"Invalid model name length: {len(config.model_name)}")
+        if ".." in config.model_name:
+            raise ValueError("Path traversal sequences not allowed in model name")
         if not _SAFE_MODEL_PATTERN.match(config.model_name):
             raise ValueError(f"Invalid characters in model name: {config.model_name}")
 
         for probe in config.probes:
             if not probe or len(probe) > 128:
                 raise ValueError(f"Invalid probe name length: {len(probe)}")
+            if ".." in probe:
+                raise ValueError("Path traversal sequences not allowed in probe name")
             if not _SAFE_PROBE_PATTERN.match(probe):
                 raise ValueError(f"Invalid characters in probe name: {probe}")
 
@@ -163,17 +169,17 @@ class GarakRunner:
                         if stream == process.stdout:
                             stdout_lines.append(line)
                             on_stdout_line(line)
-                            # Check for report path in output
-                            if ".report.jsonl" in line:
-                                parts = line.split()
-                                for part in parts:
-                                    if ".report.jsonl" in part:
-                                        report_path = part.strip()
-                            if ".hitlog.jsonl" in line:
-                                parts = line.split()
-                                for part in parts:
-                                    if ".hitlog.jsonl" in part:
-                                        hitlog_path = part.strip()
+                            # Extract report/hitlog paths via regex
+                            report_match = _REPORT_PATH_PATTERN.search(line)
+                            if report_match:
+                                candidate = report_match.group(1)
+                                if ".." not in candidate:
+                                    report_path = candidate
+                            hitlog_match = _HITLOG_PATH_PATTERN.search(line)
+                            if hitlog_match:
+                                candidate = hitlog_match.group(1)
+                                if ".." not in candidate:
+                                    hitlog_path = candidate
                         else:
                             stderr_lines.append(line)
                             on_stderr_line(line)

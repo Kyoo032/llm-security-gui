@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import threading
 from pathlib import Path
 from typing import Callable, List, Optional
+
+_HF_TOKEN_PATTERN = re.compile(r"^hf_[a-zA-Z0-9]{8,498}$")
 
 import gi  # type: ignore
 gi.require_version("Gtk", "3.0")
@@ -18,7 +21,7 @@ from hf_cli import HFCLIStatus, check_hf_cli_auth
 
 try:
     from huggingface_hub import get_token as hf_get_token
-except Exception:
+except (ImportError, ModuleNotFoundError):
     hf_get_token = None
 
 
@@ -324,6 +327,15 @@ class CheckController:
                     )
                     return
 
+                if not _HF_TOKEN_PATTERN.match(token):
+                    GLib.idle_add(
+                        self._update_hf_ui,
+                        False,
+                        "Token has invalid format",
+                        "Token must start with 'hf_'. Try <b>hf auth login</b> again",
+                    )
+                    return
+
                 self._hf_token = token
                 from api_handler import HuggingFaceAPIHandler
 
@@ -352,13 +364,16 @@ class CheckController:
     @staticmethod
     def _detect_hf_token() -> Optional[str]:
         """Find HF token from library, files, or environment."""
+        logger = logging.getLogger("garak_gui.check_controller")
+
         if hf_get_token is not None:
             try:
                 token = hf_get_token()
                 if token and token.strip():
+                    logger.debug("Token found from huggingface_hub library")
                     return token.strip()
             except Exception:
-                pass
+                logger.debug("huggingface_hub.get_token() failed, trying other sources")
 
         token_paths: List[Path] = []
         hf_token_path = os.environ.get("HF_TOKEN_PATH")
@@ -370,6 +385,8 @@ class CheckController:
         token_paths.append(Path.home() / ".cache" / "huggingface" / "token")
         token_paths.append(Path.home() / ".huggingface" / "token")
 
+        _MAX_TOKEN_FILE_SIZE = 1024  # 1KB
+
         seen: set = set()
         for path in token_paths:
             key = str(path)
@@ -379,15 +396,26 @@ class CheckController:
             if not path.exists():
                 continue
             try:
+                file_size = path.stat().st_size
+                if file_size > _MAX_TOKEN_FILE_SIZE:
+                    logger.warning(
+                        "Token file too large (%d bytes), skipping: %s",
+                        file_size,
+                        path,
+                    )
+                    continue
                 token = path.read_text().strip()
                 if token:
+                    logger.debug("Token found from file: %s", path)
                     return token
-            except Exception:
+            except (OSError, PermissionError) as exc:
+                logger.debug("Cannot read token file %s: %s", path, exc)
                 continue
 
         for var in ("HF_TOKEN", "HUGGINGFACE_TOKEN"):
             token = os.environ.get(var)
             if token and token.strip():
+                logger.debug("Token found from environment variable: %s", var)
                 return token.strip()
 
         return None
