@@ -50,14 +50,54 @@ class GarakSummary:
 class GarakReportParser:
     """Parses Garak report.jsonl and hitlog.jsonl files."""
 
+    _MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+    _VALID_EXTENSIONS = {".jsonl"}
+
     def __init__(self) -> None:
         self.logger = logging.getLogger("garak_gui.report_parser")
 
+    def _validate_path(self, file_path: str) -> Optional[Path]:
+        """Validate and resolve a report file path. Returns None if invalid."""
+        path = Path(file_path).resolve()
+
+        if ".." in Path(file_path).parts:
+            self.logger.error("Path traversal detected in: %s", file_path)
+            return None
+
+        if path.suffix not in self._VALID_EXTENSIONS:
+            self.logger.error("Invalid file extension: %s", path.suffix)
+            return None
+
+        if not path.exists():
+            self.logger.warning("Report file not found: %s", file_path)
+            return None
+
+        try:
+            file_size = path.stat().st_size
+            if file_size > self._MAX_FILE_SIZE:
+                self.logger.error(
+                    "Report file too large (%d bytes, max %d): %s",
+                    file_size,
+                    self._MAX_FILE_SIZE,
+                    path,
+                )
+                return None
+        except OSError as exc:
+            self.logger.error("Cannot stat file %s: %s", path, exc)
+            return None
+
+        return path
+
+    @staticmethod
+    def _safe_str(value: Any, max_length: int = 10_000) -> str:
+        """Convert value to string and truncate to max_length."""
+        s = str(value) if value is not None else ""
+        return s[:max_length]
+
     def parse_report(self, report_path: str) -> GarakSummary:
         """Parse a .report.jsonl file into a structured summary."""
-        path = Path(report_path)
-        if not path.exists():
-            self.logger.warning("Report file not found: %s", report_path)
+        path = self._validate_path(report_path)
+        if path is None:
             return GarakSummary(
                 total_attempts=0,
                 total_passed=0,
@@ -71,9 +111,8 @@ class GarakReportParser:
 
     def parse_hitlog(self, hitlog_path: str) -> List[GarakAttempt]:
         """Parse a .hitlog.jsonl file for vulnerability-only entries."""
-        path = Path(hitlog_path)
-        if not path.exists():
-            self.logger.warning("Hitlog file not found: %s", hitlog_path)
+        path = self._validate_path(hitlog_path)
+        if path is None:
             return []
 
         entries = self._read_jsonl(path)
@@ -153,14 +192,22 @@ class GarakReportParser:
 
     def _entry_to_attempt(self, entry: Dict[str, Any]) -> GarakAttempt:
         """Convert a JSONL entry dict to a GarakAttempt."""
+        raw_passed = entry.get("passed")
+        passed = raw_passed if isinstance(raw_passed, bool) else None
+
+        raw_score = entry.get("score")
+        score: Optional[float] = None
+        if isinstance(raw_score, (int, float)):
+            score = float(raw_score)
+
         return GarakAttempt(
-            probe=str(entry.get("probe", "")),
-            detector=str(entry.get("detector", "")),
-            status=str(entry.get("status", "")),
-            prompt=str(entry.get("prompt", "")),
-            output=str(entry.get("output", entry.get("response", ""))),
-            passed=entry.get("passed"),
-            score=entry.get("score"),
+            probe=self._safe_str(entry.get("probe", "")),
+            detector=self._safe_str(entry.get("detector", "")),
+            status=self._safe_str(entry.get("status", "")),
+            prompt=self._safe_str(entry.get("prompt", "")),
+            output=self._safe_str(entry.get("output", entry.get("response", ""))),
+            passed=passed,
+            score=score,
         )
 
     def _aggregate(self, entries: List[Dict[str, Any]]) -> GarakSummary:

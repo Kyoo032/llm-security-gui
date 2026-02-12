@@ -35,23 +35,18 @@ class HuggingFaceAPIHandler:
         if timeouts:
             self.timeouts.update(timeouts)
         self._rate_limited_until = 0.0
+        self.session.verify = True
         self.logger = logging.getLogger("llm_red_team_gui.api")
 
     def validate_key(self) -> Tuple[bool, str]:
         """Validate the API key by calling the whoami endpoint."""
         try:
-            self.logger.info("=" * 60)
             self.logger.info("Validating HuggingFace token...")
-            self.logger.info("Token length: %s", len(self.api_key))
-            self.logger.info("Token starts with 'hf_': %s", self.api_key.startswith("hf_"))
 
             response = self.session.get(
                 "https://huggingface.co/api/whoami-v2",
                 timeout=self.timeouts["validate"],
             )
-
-            self.logger.info("Response status code: %s", response.status_code)
-            self.logger.info("=" * 60)
 
             if response.status_code == 200:
                 data = response.json()
@@ -76,7 +71,7 @@ class HuggingFaceAPIHandler:
         except requests.exceptions.ConnectionError as e:
             self.logger.error("Connection error: %s", e)
             return False, "Cannot reach HuggingFace servers. Check your internet connection"
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             self.logger.exception("validate_key failed")
             return False, f"Error: {str(e)}"
 
@@ -123,8 +118,8 @@ class HuggingFaceAPIHandler:
                 wait_time = int(retry_after) if retry_after and retry_after.isdigit() else 10
                 self._rate_limited_until = time.time() + wait_time
             return []
-        except Exception as e:
-            self.logger.exception("search_models failed: %s", e)
+        except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+            self.logger.debug("search_models failed: %s", e)
             return []
 
     def get_model_info(self, model_id: str) -> Optional[Dict]:
@@ -137,8 +132,8 @@ class HuggingFaceAPIHandler:
             if response.status_code == 200:
                 return response.json()
             return None
-        except Exception:
-            self.logger.exception("get_model_info failed")
+        except (requests.exceptions.RequestException, ValueError) as exc:
+            self.logger.debug("get_model_info failed: %s", exc)
             return None
 
     def generate(
@@ -226,8 +221,8 @@ class HuggingFaceAPIHandler:
                     time.sleep(5)
                     continue
                 return {"error": "Request timeout", "text": "", "success": False}
-            except Exception as e:
-                self.logger.exception("generate failed")
+            except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+                self.logger.debug("generate failed: %s", e)
                 return {"error": str(e), "text": "", "success": False}
 
         return {"error": "Max retries exceeded", "text": "", "success": False}
