@@ -130,7 +130,7 @@ class WorkspaceController:
 
         # Nav buttons
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        nav.set_margin_top(30)
+        nav.set_margin_top(24)
 
         self._step3_back_btn = Gtk.Button(label="\u2190 Back")
         self._step3_back_btn.get_style_context().add_class("nav-button-back")
@@ -239,7 +239,7 @@ class WorkspaceController:
 
         # Nav buttons
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        nav.set_margin_top(30)
+        nav.set_margin_top(24)
 
         self._step4_back_btn = Gtk.Button(label="\u2190 Back")
         self._step4_back_btn.get_style_context().add_class("nav-button-back")
@@ -275,6 +275,21 @@ class WorkspaceController:
 
     # ── Step 5: Configuration ───────────────────────────────────────
 
+    # Garak parameter limits
+    _GENERATIONS_MIN = 1
+    _GENERATIONS_MAX = 50
+    _GENERATIONS_DEFAULT = 1
+    _GENERATIONS_WARN = 10
+
+    _TEMPERATURE_MIN = 0.0
+    _TEMPERATURE_MAX = 2.0
+    _TEMPERATURE_DEFAULT = 0.7
+
+    _MAX_TOKENS_MIN = 16
+    _MAX_TOKENS_MAX = 2048
+    _MAX_TOKENS_DEFAULT = 512
+    _MAX_TOKENS_WARN = 1024
+
     def _build_step5(self) -> None:
         page = self.builder.get_object("step_5_page")
         if page is None:
@@ -285,6 +300,18 @@ class WorkspaceController:
         title.set_xalign(0)
         page.pack_start(title, False, False, 0)
 
+        # Defaults explanation
+        defaults_note = Gtk.Label()
+        defaults_note.set_markup(
+            "<small>Defaults are tuned for low-VRAM GPUs (4 GB). "
+            "Higher values increase scan time, memory usage, and API costs.</small>"
+        )
+        defaults_note.set_xalign(0)
+        defaults_note.set_line_wrap(True)
+        defaults_note.set_margin_top(8)
+        defaults_note.get_style_context().add_class("label-muted")
+        page.pack_start(defaults_note, False, False, 0)
+
         # Generation Parameters section
         gen_label = Gtk.Label(label="Generation Parameters")
         gen_label.get_style_context().add_class("section-title")
@@ -294,42 +321,122 @@ class WorkspaceController:
 
         gen_grid = Gtk.Grid()
         gen_grid.set_column_spacing(16)
-        gen_grid.set_row_spacing(12)
+        gen_grid.set_row_spacing(4)
         gen_grid.set_margin_top(8)
 
+        row = 0
+
         # Generations per prompt
-        gens_label = Gtk.Label(label="Generations per Prompt (default: 1)")
+        gens_label = Gtk.Label(
+            label=f"Generations per Prompt ({self._GENERATIONS_MIN}"
+            f"-{self._GENERATIONS_MAX}, default: {self._GENERATIONS_DEFAULT})"
+        )
         gens_label.get_style_context().add_class("label-input")
         gens_label.set_xalign(0)
-        gen_grid.attach(gens_label, 0, 0, 1, 1)
+        gens_label.set_hexpand(True)
+        gen_grid.attach(gens_label, 0, row, 1, 1)
 
-        self._generations_spin = Gtk.SpinButton.new_with_range(1, 50, 1)
-        self._generations_spin.set_value(1)
+        self._generations_spin = Gtk.SpinButton.new_with_range(
+            self._GENERATIONS_MIN, self._GENERATIONS_MAX, 1
+        )
+        self._generations_spin.set_value(self._GENERATIONS_DEFAULT)
         self._generations_spin.set_width_chars(8)
-        gen_grid.attach(self._generations_spin, 1, 0, 1, 1)
+        self._generations_spin.set_numeric(True)
+        self._generations_spin.set_hexpand(False)
+        self._generations_spin.connect("value-changed", self._on_generations_changed)
+        gen_grid.attach(self._generations_spin, 1, row, 1, 1)
+
+        row += 1
+        gens_hint = Gtk.Label()
+        gens_hint.set_markup(
+            "<small>How many times Garak repeats each probe. "
+            "Default 1 is enough for a quick scan.</small>"
+        )
+        gens_hint.set_xalign(0)
+        gens_hint.set_line_wrap(True)
+        gens_hint.get_style_context().add_class("label-muted")
+        gen_grid.attach(gens_hint, 0, row, 2, 1)
+
+        row += 1
+        self._generations_warning = Gtk.Label()
+        self._generations_warning.set_xalign(0)
+        self._generations_warning.set_line_wrap(True)
+        self._generations_warning.set_no_show_all(True)
+        self._generations_warning.get_style_context().add_class("warning-label")
+        gen_grid.attach(self._generations_warning, 0, row, 2, 1)
+
+        row += 1
 
         # Temperature
-        temp_label = Gtk.Label(label="Temperature (0.0 - 2.0)")
+        temp_label = Gtk.Label(
+            label=f"Temperature ({self._TEMPERATURE_MIN:.1f}"
+            f"-{self._TEMPERATURE_MAX:.1f}, default: {self._TEMPERATURE_DEFAULT})"
+        )
         temp_label.get_style_context().add_class("label-input")
         temp_label.set_xalign(0)
-        gen_grid.attach(temp_label, 0, 1, 1, 1)
+        temp_label.set_margin_top(8)
+        gen_grid.attach(temp_label, 0, row, 1, 1)
 
-        self._temperature_spin = Gtk.SpinButton.new_with_range(0.0, 2.0, 0.1)
+        self._temperature_spin = Gtk.SpinButton.new_with_range(
+            self._TEMPERATURE_MIN, self._TEMPERATURE_MAX, 0.1
+        )
         self._temperature_spin.set_digits(1)
-        self._temperature_spin.set_value(0.7)
+        self._temperature_spin.set_value(self._TEMPERATURE_DEFAULT)
         self._temperature_spin.set_width_chars(8)
-        gen_grid.attach(self._temperature_spin, 1, 1, 1, 1)
+        self._temperature_spin.set_numeric(True)
+        self._temperature_spin.set_hexpand(False)
+        gen_grid.attach(self._temperature_spin, 1, row, 1, 1)
+
+        row += 1
+        temp_hint = Gtk.Label()
+        temp_hint.set_markup(
+            "<small>Controls randomness. 0.7 balances variety and coherence.</small>"
+        )
+        temp_hint.set_xalign(0)
+        temp_hint.set_line_wrap(True)
+        temp_hint.get_style_context().add_class("label-muted")
+        gen_grid.attach(temp_hint, 0, row, 2, 1)
+
+        row += 1
 
         # Max tokens
-        tokens_label = Gtk.Label(label="Max Tokens")
+        tokens_label = Gtk.Label(
+            label=f"Max Tokens ({self._MAX_TOKENS_MIN}"
+            f"-{self._MAX_TOKENS_MAX}, default: {self._MAX_TOKENS_DEFAULT})"
+        )
         tokens_label.get_style_context().add_class("label-input")
         tokens_label.set_xalign(0)
-        gen_grid.attach(tokens_label, 0, 2, 1, 1)
+        tokens_label.set_margin_top(8)
+        gen_grid.attach(tokens_label, 0, row, 1, 1)
 
-        self._max_tokens_spin = Gtk.SpinButton.new_with_range(16, 4096, 16)
-        self._max_tokens_spin.set_value(512)
+        self._max_tokens_spin = Gtk.SpinButton.new_with_range(
+            self._MAX_TOKENS_MIN, self._MAX_TOKENS_MAX, 16
+        )
+        self._max_tokens_spin.set_value(self._MAX_TOKENS_DEFAULT)
         self._max_tokens_spin.set_width_chars(8)
-        gen_grid.attach(self._max_tokens_spin, 1, 2, 1, 1)
+        self._max_tokens_spin.set_numeric(True)
+        self._max_tokens_spin.set_hexpand(False)
+        self._max_tokens_spin.connect("value-changed", self._on_max_tokens_changed)
+        gen_grid.attach(self._max_tokens_spin, 1, row, 1, 1)
+
+        row += 1
+        tokens_hint = Gtk.Label()
+        tokens_hint.set_markup(
+            "<small>Max response length per generation. "
+            "512 is enough for most probes without excessive VRAM use.</small>"
+        )
+        tokens_hint.set_xalign(0)
+        tokens_hint.set_line_wrap(True)
+        tokens_hint.get_style_context().add_class("label-muted")
+        gen_grid.attach(tokens_hint, 0, row, 2, 1)
+
+        row += 1
+        self._max_tokens_warning = Gtk.Label()
+        self._max_tokens_warning.set_xalign(0)
+        self._max_tokens_warning.set_line_wrap(True)
+        self._max_tokens_warning.set_no_show_all(True)
+        self._max_tokens_warning.get_style_context().add_class("warning-label")
+        gen_grid.attach(self._max_tokens_warning, 0, row, 2, 1)
 
         page.pack_start(gen_grid, False, False, 0)
 
@@ -395,7 +502,7 @@ class WorkspaceController:
 
         # Nav buttons
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        nav.set_margin_top(30)
+        nav.set_margin_top(24)
 
         self._step5_back_btn = Gtk.Button(label="\u2190 Back")
         self._step5_back_btn.get_style_context().add_class("nav-button-back")
@@ -407,6 +514,37 @@ class WorkspaceController:
 
         page.pack_start(nav, False, False, 0)
         page.show_all()
+
+    # ── Value-changed warnings ─────────────────────────────────────
+
+    def _on_generations_changed(self, spin: Gtk.SpinButton) -> None:
+        value = int(spin.get_value())
+        if value > self._GENERATIONS_WARN:
+            self._generations_warning.set_markup(
+                f"<small>\u26a0 High value ({value}). Each generation runs "
+                f"every selected probe again, multiplying scan time, "
+                f"VRAM usage, and API calls. "
+                f"Consider {self._GENERATIONS_DEFAULT}-"
+                f"{self._GENERATIONS_WARN} unless you need "
+                f"statistical confidence.</small>"
+            )
+            self._generations_warning.show()
+        else:
+            self._generations_warning.hide()
+
+    def _on_max_tokens_changed(self, spin: Gtk.SpinButton) -> None:
+        value = int(spin.get_value())
+        if value > self._MAX_TOKENS_WARN:
+            self._max_tokens_warning.set_markup(
+                f"<small>\u26a0 High value ({value}). Larger responses "
+                f"consume more VRAM and increase inference time per "
+                f"generation. On 4 GB GPUs this may cause out-of-memory "
+                f"errors. {self._MAX_TOKENS_DEFAULT} tokens is enough "
+                f"for most probes.</small>"
+            )
+            self._max_tokens_warning.show()
+        else:
+            self._max_tokens_warning.hide()
 
     # ── Public accessors ────────────────────────────────────────────
 
@@ -428,11 +566,23 @@ class WorkspaceController:
         return len(self.get_selected_probes())
 
     def get_run_settings(self) -> Dict:
-        """Return all configuration settings for the run."""
+        """Return all configuration settings for the run, clamped to safe ranges."""
+        generations = max(
+            self._GENERATIONS_MIN,
+            min(self._GENERATIONS_MAX, int(self._generations_spin.get_value())),
+        )
+        temperature = max(
+            self._TEMPERATURE_MIN,
+            min(self._TEMPERATURE_MAX, round(self._temperature_spin.get_value(), 1)),
+        )
+        max_tokens = max(
+            self._MAX_TOKENS_MIN,
+            min(self._MAX_TOKENS_MAX, int(self._max_tokens_spin.get_value())),
+        )
         return {
-            "generations": int(self._generations_spin.get_value()),
-            "temperature": round(self._temperature_spin.get_value(), 1),
-            "max_tokens": int(self._max_tokens_spin.get_value()),
+            "generations": generations,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
             "verbose": self._verbose_check.get_active(),
             "save_intermediate": self._intermediate_check.get_active(),
             "parallel": self._parallel_check.get_active(),

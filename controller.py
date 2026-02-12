@@ -89,7 +89,7 @@ class PrototypeController:
 
             label = Gtk.Label(label=step["label"])
             label.set_xalign(0)
-            label.set_hexpand(True)
+            label.set_hexpand(False)
             label.get_style_context().add_class("step-label")
             box.pack_start(label, True, True, 0)
 
